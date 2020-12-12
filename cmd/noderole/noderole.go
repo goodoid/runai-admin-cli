@@ -23,7 +23,7 @@ type nodeRoleTypes struct {
 const (
 	gpuWorkerLabel    = "node-role.kubernetes.io/runai-gpu-worker"
 	cpuWorkerLabel    = "node-role.kubernetes.io/runai-cpu-worker"
-	systemWorkerLabel = "node-role.kubernetes.io/runai-system-worker"
+	systemWorkerLabel = "node-role.kubernetes.io/runai-system"
 )
 
 func Set() *cobra.Command {
@@ -35,9 +35,10 @@ func Set() *cobra.Command {
 		Args:    cobra.MinimumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			client := client.GetClient()
-			nodesInCluster := labelNodesWithRoles(client, flags, args)
+			nodesInCluster := labelNodesWithRolesAndGetNodesInCluster(client, flags, args)
 			updateRunaiConfig(client, flags)
 			deleteResourcesIfNeeded(flags, client, nodesInCluster)
+			log.Info("Successfully updated nodes and set configurations")
 		},
 	}
 
@@ -48,10 +49,11 @@ func Set() *cobra.Command {
 	return command
 }
 
-func deletePodsIfNeeded(flags nodeRoleTypes, client *client.Client, nodesInCluster map[string]*v1.Node) {
+func deletePodsIfNeeded(flags nodeRoleTypes, client *client.Client, nodesInCluster map[string]v1.Node) {
 	if !flags.RunaiSystemWorker && !flags.CpuWorker && !flags.GpuWorker {
 		return
 	}
+	log.Debugf("Deleting runai pods if needed")
 	runaiPods, err := client.GetClientset().CoreV1().Pods("runai").List(metav1.ListOptions{})
 	if err != nil {
 		fmt.Println("Failed to list pods from runai namespace")
@@ -63,38 +65,44 @@ func deletePodsIfNeeded(flags nodeRoleTypes, client *client.Client, nodesInClust
 	}
 }
 
-func deletePodIfNeeded(pod v1.Pod, nodesInCluster map[string]*v1.Node, client *client.Client) {
+func deletePodIfNeeded(pod v1.Pod, nodesInCluster map[string]v1.Node, client *client.Client) {
 	if pod.Spec.Affinity == nil || pod.Spec.Affinity.NodeAffinity == nil || pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution == nil || pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms == nil {
 		return
 	}
 	for _, nodeSelectorTerms := range pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms {
 		for _, matchExpressions := range nodeSelectorTerms.MatchExpressions {
 			if matchExpressions.Key == systemWorkerLabel {
-				if _, found := nodesInCluster[pod.Spec.NodeName].Labels[systemWorkerLabel]; found {
+				if len(pod.Spec.NodeName) == 0 {
+					return
+				}
+				_, found := nodesInCluster[pod.Spec.NodeName].Labels[systemWorkerLabel]
+				if found {
 					return
 				}
 				err := client.GetClientset().CoreV1().Pods("runai").Delete(pod.Name, &metav1.DeleteOptions{})
 				if err != nil {
 					log.Debugf("Failed to delete pod: %v, error: %v", pod.Name, err)
 				}
+				log.Debugf("Deleted runai pod: %v", pod.Name)
+				return
 			}
 		}
 	}
 }
 
-func deleteResourcesIfNeeded(flags nodeRoleTypes, client *client.Client, nodesInCluster map[string]*v1.Node) {
+func deleteResourcesIfNeeded(flags nodeRoleTypes, client *client.Client, nodesInCluster map[string]v1.Node) {
 	log.Info("Updating RunAi resources")
 	deletePVCIfNeeded(flags, client, nodesInCluster)
 	deletePodsIfNeeded(flags, client, nodesInCluster)
 }
-func deletePVCIfNeeded(flags nodeRoleTypes, client *client.Client, nodesInCluster map[string]*v1.Node) {
+func deletePVCIfNeeded(flags nodeRoleTypes, client *client.Client, nodesInCluster map[string]v1.Node) {
 	if !flags.RunaiSystemWorker {
 		return
 	}
 	pvc, err := client.GetClientset().CoreV1().PersistentVolumeClaims("runai").Get("data-runai-db-0", metav1.GetOptions{})
 	if err != nil {
-		fmt.Println("Failed to list PVCs from runai namespace")
-		os.Exit(1)
+		log.Debugf("Failed to list PVCs from runai namespace")
+		return
 	}
 
 	pvcNode, found := pvc.Annotations["volume.kubernetes.io/selected-node"]
@@ -104,7 +112,7 @@ func deletePVCIfNeeded(flags nodeRoleTypes, client *client.Client, nodesInCluste
 
 	nodeInfo, found := nodesInCluster[pvcNode]
 	if !found {
-		fmt.Println("Failed to find pvc node in cluster, node: %s", pvcNode)
+		fmt.Printf("Failed to find pvc node in cluster, node: %v\n", pvcNode)
 		os.Exit(1)
 	}
 
@@ -136,17 +144,22 @@ func updateRunaiDeploymentIfNeeded(client *client.Client, flags nodeRoleTypes) {
 		os.Exit(1)
 	}
 
-	nodeSelectorTerms := []v1.NodeSelectorTerm{
-		{
-			MatchExpressions: []v1.NodeSelectorRequirement{
-				{
-					Key:      systemWorkerLabel,
-					Operator: v1.NodeSelectorOpExists,
+	deployment.Spec.Template.Spec.Affinity = &v1.Affinity{
+		NodeAffinity: &v1.NodeAffinity{
+			RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+				NodeSelectorTerms: []v1.NodeSelectorTerm{
+					{
+						MatchExpressions: []v1.NodeSelectorRequirement{
+							{
+								Key:      systemWorkerLabel,
+								Operator: v1.NodeSelectorOpExists,
+							},
+						},
+					},
 				},
 			},
 		},
 	}
-	deployment.Spec.Template.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms = nodeSelectorTerms
 
 	_, err = client.GetClientset().AppsV1().Deployments("runai").Update(deployment)
 	if err != nil {
@@ -166,8 +179,8 @@ func updateRunaiConfigIfNeeded(client *client.Client, flags nodeRoleTypes) {
 		os.Exit(1)
 	}
 	if flags.CpuWorker || flags.GpuWorker {
-		wasRestrictSchedulingEnabled, found, err := unstructured.NestedBool(runaiConfig.Object, "spec.global.nodeAffinity", "restrictScheduling")
-		if err != nil || !found {
+		wasRestrictSchedulingEnabled, _, err := unstructured.NestedBool(runaiConfig.Object, "spec.global.nodeAffinity", "restrictScheduling")
+		if err != nil {
 			fmt.Printf("Failed to get restrictScheduling from runaiConfig, error: %v", err)
 			os.Exit(1)
 		}
@@ -181,10 +194,9 @@ func updateRunaiConfigIfNeeded(client *client.Client, flags nodeRoleTypes) {
 	}
 
 	if flags.RunaiSystemWorker {
-		wasRestrictRunaiSystemEnabled, found, err := unstructured.NestedBool(runaiConfig.Object, "spec.global.nodeAffinity", "restrictRunaiSystem")
-		if err != nil || !found {
-			fmt.Printf("yodarsdebug %v", runaiConfig.Object)
-			fmt.Printf("Failed to get restrictRunaiSystem from runaiConfig, error: %v, found: %v", err, found)
+		wasRestrictRunaiSystemEnabled, _, err := unstructured.NestedBool(runaiConfig.Object, "spec.global.nodeAffinity", "restrictRunaiSystem")
+		if err != nil {
+			fmt.Printf("Failed to get restrictRunaiSystem from runaiConfig, error: %v", err)
 			os.Exit(1)
 		}
 		needToUpdateRunaiConfig = needToUpdateRunaiConfig || !wasRestrictRunaiSystemEnabled
@@ -205,10 +217,10 @@ func updateRunaiConfigIfNeeded(client *client.Client, flags nodeRoleTypes) {
 	}
 }
 
-func labelNodesWithRoles(client *client.Client, flags nodeRoleTypes, args []string) map[string]*v1.Node {
+func labelNodesWithRolesAndGetNodesInCluster(client *client.Client, flags nodeRoleTypes, args []string) map[string]v1.Node {
 	log.Info("Updating nodes with roles")
 
-	allNodeClusters := map[string]*v1.Node{}
+	allNodeClusters := map[string]v1.Node{}
 	nodesInCluster, err := client.GetClientset().CoreV1().Nodes().List(metav1.ListOptions{})
 	if err != nil || len(nodesInCluster.Items) == 0 {
 		fmt.Println("Failed to list nodesInCluster")
@@ -219,35 +231,32 @@ func labelNodesWithRoles(client *client.Client, flags nodeRoleTypes, args []stri
 	if flags.AllNodes {
 		for _, nodeInfo := range nodesInCluster.Items {
 			setLabelsSingleNode(&nodeInfo, flags, client)
-			allNodeClusters[nodeInfo.Name] = &nodeInfo
+			allNodeClusters[nodeInfo.Name] = nodeInfo
 			wasAnyNodeUpdated = true
 		}
 		log.Debugf("Successfully updated all nodes with roles")
 		return allNodeClusters
-	} else {
-		wasNodeUpdate := map[string]bool{}
-		for _, nodeToLabel := range args {
-			wasNodeUpdate[nodeToLabel] = false
-			for _, nodeInfo := range nodesInCluster.Items {
-				if wasNodeUpdate[nodeToLabel] == true {
-					continue
-				}
+	}
 
-				if nodeToLabel == nodeInfo.Name {
-					setLabelsSingleNode(&nodeInfo, flags, client)
-					wasNodeUpdate[nodeToLabel] = true
-					wasAnyNodeUpdated = true
-					allNodeClusters[nodeInfo.Name] = &nodeInfo
-				}
-				if _, found := allNodeClusters[nodeInfo.Name]; !found {
-					allNodeClusters[nodeInfo.Name] = &nodeInfo
-				}
-			}
+	nodesToUpdateMap := map[string]bool{}
+	wasNodeUpdated := map[string]bool{}
+	for _, nodeToLabel := range args {
+		nodesToUpdateMap[nodeToLabel] = true
+		wasNodeUpdated[nodeToLabel] = false
+	}
+	for _, nodeInfo := range nodesInCluster.Items {
+		if nodesToUpdateMap[nodeInfo.Name] {
+			setLabelsSingleNode(&nodeInfo, flags, client)
+			wasAnyNodeUpdated = true
+			wasNodeUpdated[nodeInfo.Name] = true
+			allNodeClusters[nodeInfo.Name] = nodeInfo
 		}
-		for nodeName := range wasNodeUpdate {
-			if !wasNodeUpdate[nodeName] {
-				log.Infof("Node: %v was not found in cluster", nodeName)
-			}
+		allNodeClusters[nodeInfo.Name] = nodeInfo
+	}
+
+	for nodeName := range wasNodeUpdated {
+		if !wasNodeUpdated[nodeName] {
+			log.Infof("Node: %v was not found in cluster", nodeName)
 		}
 	}
 
