@@ -1,5 +1,0 @@
-apiVersion: v2
-name: runai-common
-type: library
-description: Runai CLI Helm Commons
-version: 1.0.0

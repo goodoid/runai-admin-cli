@@ -1,7 +1,7 @@
-PACKAGE=github.com/run-ai/runai-cli
+PACKAGE=github.com/run-ai/runai-admin-cli
 CURRENT_DIR=$(shell pwd)
 DIST_DIR=${CURRENT_DIR}/bin
-ARENA_CLI_NAME=runai
+ARENA_CLI_NAME=runai-admin-cli
 JOB_MONITOR=jobmon
 OS_ARCH?=linux-amd64
 

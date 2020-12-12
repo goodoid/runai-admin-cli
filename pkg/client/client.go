@@ -1,6 +1,9 @@
 package client
 
 import (
+	"fmt"
+	"os"
+
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -20,9 +23,9 @@ type Client struct {
 	namespace     string
 }
 
-func GetClient() (*Client, error) {
+func GetClient() *Client {
 	if client != nil {
-		return client, nil
+		return client
 	}
 
 	getter := genericclioptions.NewConfigFlags(true)
@@ -30,24 +33,28 @@ func GetClient() (*Client, error) {
 	namespace, _, err := factory.ToRawKubeConfigLoader().Namespace()
 
 	if err != nil {
-		return nil, err
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
 	clientConfig := factory.ToRawKubeConfigLoader()
 	restConfig, err := clientConfig.ClientConfig()
 
 	if err != nil {
-		return nil, err
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
 	clientset, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
-		return nil, err
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
 	dynamicClient, err := dynamic.NewForConfig(restConfig)
 	if err != nil {
-		return nil, err
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
 	return &Client{
@@ -55,7 +62,7 @@ func GetClient() (*Client, error) {
 		restConfig:    restConfig,
 		clientset:     clientset,
 		dynamicClient: dynamicClient,
-	}, nil
+	}
 }
 
 func (c *Client) GetDynamicClient() dynamic.Interface {

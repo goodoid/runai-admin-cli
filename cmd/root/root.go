@@ -15,19 +15,8 @@
 package root
 
 import (
-	"github.com/run-ai/runai-cli/cmd/cluster"
-	"github.com/run-ai/runai-cli/cmd/flags"
-	"github.com/run-ai/runai-cli/cmd/resource"
-
-	raCmd "github.com/run-ai/runai-cli/cmd"
-	"github.com/run-ai/runai-cli/cmd/attach"
-	"github.com/run-ai/runai-cli/cmd/exec"
 	"github.com/run-ai/runai-cli/cmd/global"
-	deleteJob "github.com/run-ai/runai-cli/cmd/job/delete"
-	submitJob "github.com/run-ai/runai-cli/cmd/job/submit"
 	"github.com/run-ai/runai-cli/cmd/logs"
-	"github.com/run-ai/runai-cli/cmd/project"
-	"github.com/run-ai/runai-cli/cmd/template"
 
 	"github.com/run-ai/runai-cli/pkg/config"
 	"github.com/run-ai/runai-cli/pkg/util"
@@ -43,7 +32,7 @@ import (
 func NewCommand() *cobra.Command {
 	var command = &cobra.Command{
 		Use:   config.CLIName,
-		Short: "runai is a command line interface to a RunAI cluster",
+		Short: "runai-adm is a command line interface to a RunAI cluster",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmd.HelpFunc()(cmd, args)
 		},
@@ -53,34 +42,12 @@ func NewCommand() *cobra.Command {
 		},
 	}
 
-	addKubectlFlagsToCmd(command)
-
 	// enable logging
-	command.PersistentFlags().StringVar(&global.LogLevel, "loglevel", "info", "Set the logging level. One of: debug|info|warn|error")
+	command.PersistentFlags().StringVar(&global.LogLevel, "loglevel", "debug", "Set the logging level. One of: debug|info|warn|error")
 
-	command.AddCommand(submitJob.NewRunaiJobCommand())
-	command.AddCommand(submitJob.NewRunaiSubmitMPIJobCommand())
-	command.AddCommand(resource.NewListCommand())
-	command.AddCommand(logs.NewLogsCommand())
-	command.AddCommand(deleteJob.NewDeleteCommand())
-	command.AddCommand(resource.GetCommand())
-	command.AddCommand(resource.NewTopCommand())
-	command.AddCommand(resource.NewDescribeCommand())
-	command.AddCommand(resource.ConfigCommand())
-	command.AddCommand(raCmd.NewVersionCmd())
-	command.AddCommand(raCmd.NewUpdateCommand())
-	command.AddCommand(exec.NewBashCommand())
-	command.AddCommand(exec.NewExecCommand())
-	command.AddCommand(attach.NewAttachCommand())
-	command.AddCommand(template.NewTemplateCommand())
-	command.AddCommand(project.NewProjectCommand())
-	command.AddCommand(cluster.NewClusterCommand())
+	command.AddCommand(set.Command())
 
 	return command
-}
-
-func addKubectlFlagsToCmd(cmd *cobra.Command) {
-	cmd.PersistentFlags().StringP(flags.ProjectFlag, "p", "", "Specify the project to which the command applies. By default, commands apply to the default project. To change the default project use ‘runai config project <project name>’.")
 }
 
 func createNamespace(client *kubernetes.Clientset, namespace string) error {
