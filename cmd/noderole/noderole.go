@@ -221,12 +221,13 @@ func updateRunaiConfigIfNeeded(client *client.Client, flags nodeRoleTypes, nodeW
 	}
 
 	if flags.CpuWorker || flags.GpuWorker {
-		nodeAffinityMap["restrictScheduling"] = nodeWithRestrictSchedulingExist != nodeAffinityMap["restrictScheduling"]
+		needToUpdateRunaiConfig = nodeWithRestrictRunaiSystemExist != nodeAffinityMap["restrictRunaiSystem"]
+		nodeAffinityMap["restrictScheduling"] = nodeWithRestrictSchedulingExist
 	}
 
 	if flags.RunaiSystemWorker {
-
-		nodeAffinityMap["restrictRunaiSystem"] = needToUpdateRunaiConfig || nodeWithRestrictSchedulingExist != nodeAffinityMap["restrictRunaiSystem"]
+		needToUpdateRunaiConfig = needToUpdateRunaiConfig || nodeWithRestrictRunaiSystemExist != nodeAffinityMap["restrictRunaiSystem"]
+		nodeAffinityMap["restrictRunaiSystem"] = nodeWithRestrictRunaiSystemExist
 
 		if err != nil {
 			fmt.Printf("Failed to get restrictRunaiSystem from runaiConfig, error: %v", err)
