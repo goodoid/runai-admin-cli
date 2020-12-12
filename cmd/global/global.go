@@ -1,7 +1,6 @@
 package global
 
-
 // Global variables
 var (
-	LogLevel		string
+	LogLevel string
 )
