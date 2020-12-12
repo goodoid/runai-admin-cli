@@ -16,7 +16,8 @@ package root
 
 import (
 	"github.com/run-ai/runai-cli/cmd/global"
-	"github.com/run-ai/runai-cli/cmd/logs"
+	"github.com/run-ai/runai-cli/cmd/remove"
+	"github.com/run-ai/runai-cli/cmd/set"
 
 	"github.com/run-ai/runai-cli/pkg/config"
 	"github.com/run-ai/runai-cli/pkg/util"
@@ -46,6 +47,7 @@ func NewCommand() *cobra.Command {
 	command.PersistentFlags().StringVar(&global.LogLevel, "loglevel", "debug", "Set the logging level. One of: debug|info|warn|error")
 
 	command.AddCommand(set.Command())
+	command.AddCommand(remove.Command())
 
 	return command
 }

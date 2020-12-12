@@ -12,23 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package set
+package remove
 
 import (
-	"github.com/run-ai/runai-cli/cmd/node-role"
+	"github.com/run-ai/runai-cli/cmd/noderole"
 	"github.com/spf13/cobra"
 )
 
 func Command() *cobra.Command {
 	var command = &cobra.Command{
-		Use:   "set",
-		Short: "Set resources.",
+		Use:   "remove",
+		Short: "remove resources.",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmd.HelpFunc()(cmd, args)
 		},
 	}
 
-	command.AddCommand(node_role.Set())
+	command.AddCommand(noderole.Remove())
 
 	return command
 }
