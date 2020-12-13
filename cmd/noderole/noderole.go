@@ -3,6 +3,7 @@ package noderole
 import (
 	"fmt"
 	"os"
+	"reflect"
 
 	"github.com/run-ai/runai-cli/pkg/client"
 	log "github.com/sirupsen/logrus"
@@ -37,7 +38,7 @@ func Set() *cobra.Command {
 			client := client.GetClient()
 			nodesInCluster := labelNodesWithRolesAndGetNodesInCluster(client, flags, args, true)
 			updateRunaiConfigurations(client, flags, nodesInCluster)
-			deleteResourcesIfNeeded(flags, client, nodesInCluster)
+
 			log.Info("Successfully updated nodes and set configurations")
 		},
 	}
@@ -49,7 +50,24 @@ func Set() *cobra.Command {
 	return command
 }
 
-func deletePodsIfNeeded(flags nodeRoleTypes, client *client.Client, nodesInCluster map[string]v1.Node) {
+func scaleRunaiOperator(client *client.Client) {
+	deployment, err := client.GetClientset().AppsV1().Deployments("runai").Get("runai-operator", metav1.GetOptions{})
+	if err != nil {
+		fmt.Println("Failed to get runai operator")
+		os.Exit(1)
+	}
+
+	oneReplicas := int32(1)
+	deployment.Spec.Replicas = &oneReplicas
+	_, err = client.GetClientset().AppsV1().Deployments("runai").Update(deployment)
+	if err != nil {
+		fmt.Println("Failed to update runai operator")
+		os.Exit(1)
+	}
+	log.Infof("Scaled RunAI Operator to 1")
+}
+
+func deletePodsIfNeeded(flags nodeRoleTypes, client *client.Client, nodesInCluster map[string]v1.Node, nodeWithRestrictRunaiSystemExist, nodeWithRestrictSchedulingExist bool) {
 	if !flags.RunaiSystemWorker && !flags.CpuWorker && !flags.GpuWorker {
 		return
 	}
@@ -61,23 +79,24 @@ func deletePodsIfNeeded(flags nodeRoleTypes, client *client.Client, nodesInClust
 	}
 
 	for _, pod := range runaiPods.Items {
-		deletePodIfNeeded(pod, nodesInCluster, client)
+		deletePodIfNeeded(pod, nodesInCluster, client, nodeWithRestrictRunaiSystemExist, nodeWithRestrictSchedulingExist)
 	}
+	log.Debugf("Finished to delete all pods")
 }
 
-func deletePodIfNeeded(pod v1.Pod, nodesInCluster map[string]v1.Node, client *client.Client) {
+func deletePodIfNeeded(pod v1.Pod, nodesInCluster map[string]v1.Node, client *client.Client, nodeWithRestrictRunaiSystemExist, nodeWithRestrictSchedulingExist bool) {
 	if pod.Spec.Affinity == nil || pod.Spec.Affinity.NodeAffinity == nil || pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution == nil || pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms == nil {
 		return
 	}
 	for _, nodeSelectorTerms := range pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms {
 		for _, matchExpressions := range nodeSelectorTerms.MatchExpressions {
-			if checkIfLabelIsNotStatisfiedAndDeleteIfNeeded(pod, nodesInCluster, client, matchExpressions, systemWorkerLabel) {
+			if nodeWithRestrictRunaiSystemExist && checkIfLabelIsNotStatisfiedAndDeleteIfNeeded(pod, nodesInCluster, client, matchExpressions, systemWorkerLabel) {
 				return
 			}
-			if checkIfLabelIsNotStatisfiedAndDeleteIfNeeded(pod, nodesInCluster, client, matchExpressions, cpuWorkerLabel) {
+			if nodeWithRestrictSchedulingExist && checkIfLabelIsNotStatisfiedAndDeleteIfNeeded(pod, nodesInCluster, client, matchExpressions, cpuWorkerLabel) {
 				return
 			}
-			if checkIfLabelIsNotStatisfiedAndDeleteIfNeeded(pod, nodesInCluster, client, matchExpressions, gpuWorkerLabel) {
+			if nodeWithRestrictSchedulingExist && checkIfLabelIsNotStatisfiedAndDeleteIfNeeded(pod, nodesInCluster, client, matchExpressions, gpuWorkerLabel) {
 				return
 			}
 		}
@@ -102,48 +121,61 @@ func checkIfLabelIsNotStatisfiedAndDeleteIfNeeded(pod v1.Pod, nodesInCluster map
 	return false
 }
 
-func deleteResourcesIfNeeded(flags nodeRoleTypes, client *client.Client, nodesInCluster map[string]v1.Node) {
+func deleteResourcesIfNeeded(flags nodeRoleTypes, client *client.Client, nodesInCluster map[string]v1.Node, nodeWithRestrictRunaiSystemExist, nodeWithRestrictSchedulingExist bool) {
 	log.Info("Updating RunAi resources")
-	deletePVCIfNeeded(flags, client, nodesInCluster)
+	deletePVCAndStsIfNeeded(flags, client, nodesInCluster, nodeWithRestrictRunaiSystemExist)
 	deleteJobsIfNeeded(client)
-	deletePodsIfNeeded(flags, client, nodesInCluster)
+	deletePodsIfNeeded(flags, client, nodesInCluster, nodeWithRestrictRunaiSystemExist, nodeWithRestrictSchedulingExist)
 }
 
 func deleteJobsIfNeeded(client *client.Client) {
+	log.Debugf("Deleting runai jobs")
 	client.GetClientset().BatchV1().Jobs("runai").Delete("runai-db-migrations", &metav1.DeleteOptions{})
+	client.GetClientset().BatchV1().Jobs("runai").Delete("init-ca", &metav1.DeleteOptions{})
 }
 
-func deletePVCIfNeeded(flags nodeRoleTypes, client *client.Client, nodesInCluster map[string]v1.Node) {
-	if !flags.RunaiSystemWorker {
+func deletePVCAndStsIfNeeded(flags nodeRoleTypes, client *client.Client, nodesInCluster map[string]v1.Node, nodeWithRestrictRunaiSystemExist bool) {
+	if !flags.RunaiSystemWorker || !nodeWithRestrictRunaiSystemExist {
 		return
 	}
+
 	pvc, err := client.GetClientset().CoreV1().PersistentVolumeClaims("runai").Get("data-runai-db-0", metav1.GetOptions{})
-	if err != nil {
-		log.Debugf("Failed to list PVCs from runai namespace")
-		return
-	}
-
 	pvcNode, found := pvc.Annotations["volume.kubernetes.io/selected-node"]
-	if !found {
-		return
+	if found {
+
+		nodeInfo, found := nodesInCluster[pvcNode]
+		if !found {
+			fmt.Printf("Failed to find pvc node in cluster, node: %v\n", pvcNode)
+			os.Exit(1)
+		}
+
+		if _, found := nodeInfo.Labels[systemWorkerLabel]; found { // no need to delete the pvc - already on a system node
+			return
+		}
+
+		log.Debugf("Deleting pvc data-runai-db-0")
+		err = client.GetClientset().CoreV1().PersistentVolumeClaims("runai").Delete("data-runai-db-0", &metav1.DeleteOptions{})
+		if err != nil {
+			fmt.Println("Failed to delete pvc data-runai-db-0, error: %v", err)
+			os.Exit(1)
+		}
 	}
 
-	nodeInfo, found := nodesInCluster[pvcNode]
-	if !found {
-		fmt.Printf("Failed to find pvc node in cluster, node: %v\n", pvcNode)
-		os.Exit(1)
-	}
-
-	if _, found := nodeInfo.Labels[systemWorkerLabel]; found { // no need to delete the pvc - already on a system node
-		return
-	}
-
-	err = client.GetClientset().CoreV1().PersistentVolumeClaims("runai").Delete("data-runai-db-0", &metav1.DeleteOptions{})
+	log.Debugf("Deleting sts")
+	stsList, err := client.GetClientset().AppsV1().StatefulSets("runai").List(metav1.ListOptions{})
 	if err != nil {
-		fmt.Println("Failed to delete pvc data-runai-db-0, error: %v", err)
-		os.Exit(1)
+		log.Debugf("Failed to list sts from runai namespace")
+		return
 	}
-	log.Debugf("Deleted PVC data-runai-db-0")
+
+	for _, sts := range stsList.Items {
+		err = client.GetClientset().AppsV1().StatefulSets("runai").Delete(sts.Name, &metav1.DeleteOptions{})
+		if err != nil {
+			fmt.Printf("Failed to delete sts: %v , error: %v", sts.Name, err)
+			os.Exit(1)
+		}
+	}
+	log.Debugf("Deleted PVC and STS runai-db")
 }
 
 func updateRunaiConfigurations(client *client.Client, flags nodeRoleTypes, nodesInCluster map[string]v1.Node) {
@@ -163,11 +195,13 @@ func updateRunaiConfigurations(client *client.Client, flags nodeRoleTypes, nodes
 	}
 	log.Debugf("nodes with cpu or gpu workers exists: %v", nodeWithRestrictSchedulingExist)
 	log.Debugf("nodes with runai system workers exists: %v", nodeWithRestrictRunaiSystemExist)
+	updateScaleDownRunaiDeploymentAndUpdateAffinity(client, flags, nodeWithRestrictRunaiSystemExist)
 	updateRunaiConfigIfNeeded(client, flags, nodeWithRestrictSchedulingExist, nodeWithRestrictRunaiSystemExist)
-	updateRunaiDeploymentIfNeeded(client, flags, nodeWithRestrictRunaiSystemExist)
+	deleteResourcesIfNeeded(flags, client, nodesInCluster, nodeWithRestrictRunaiSystemExist, nodeWithRestrictSchedulingExist)
+	scaleRunaiOperator(client)
 }
 
-func updateRunaiDeploymentIfNeeded(client *client.Client, flags nodeRoleTypes, nodeWithRestrictRunaiSystemExist bool) {
+func updateScaleDownRunaiDeploymentAndUpdateAffinity(client *client.Client, flags nodeRoleTypes, nodeWithRestrictRunaiSystemExist bool) {
 	if !flags.RunaiSystemWorker {
 		return
 	}
@@ -196,6 +230,8 @@ func updateRunaiDeploymentIfNeeded(client *client.Client, flags nodeRoleTypes, n
 	} else {
 		deployment.Spec.Template.Spec.Affinity = nil
 	}
+	zeroReplicas := int32(0)
+	deployment.Spec.Replicas = &zeroReplicas
 
 	_, err = client.GetClientset().AppsV1().Deployments("runai").Update(deployment)
 	if err != nil {
@@ -209,24 +245,27 @@ func updateRunaiDeploymentIfNeeded(client *client.Client, flags nodeRoleTypes, n
 func updateRunaiConfigIfNeeded(client *client.Client, flags nodeRoleTypes, nodeWithRestrictSchedulingExist, nodeWithRestrictRunaiSystemExist bool) {
 	runaiconfigResource := schema.GroupVersionResource{Group: "run.ai", Version: "v1", Resource: "runaiconfigs"}
 	runaiConfig, err := client.GetDynamicClient().Resource(runaiconfigResource).Namespace("runai").Get("runai", metav1.GetOptions{})
-	var needToUpdateRunaiConfig bool
 	if err != nil {
 		fmt.Println("Failed to get RunaiConfig, RunAI isn't installed on the cluster")
 		os.Exit(1)
 	}
-	nodeAffinityMap, _, err := unstructured.NestedMap(runaiConfig.Object, "spec.global.nodeAffinity")
+	nodeAffinityMapOldValues, _, err := unstructured.NestedMap(runaiConfig.Object, "spec", "global", "nodeAffinity")
+	log.Debugf("RunaiConfig old values of nodeAffinityMap: %v", nodeAffinityMapOldValues)
+
+	nodeAffinityMap := map[string]interface{}{}
+	for key, val := range nodeAffinityMapOldValues {
+		nodeAffinityMap[key] = val
+	}
 	if err != nil {
 		fmt.Printf("Failed to get nodeAffinityMap from runaiConfig, error: %v", err)
 		os.Exit(1)
 	}
 
 	if flags.CpuWorker || flags.GpuWorker {
-		needToUpdateRunaiConfig = nodeWithRestrictRunaiSystemExist != nodeAffinityMap["restrictRunaiSystem"]
 		nodeAffinityMap["restrictScheduling"] = nodeWithRestrictSchedulingExist
 	}
 
 	if flags.RunaiSystemWorker {
-		needToUpdateRunaiConfig = needToUpdateRunaiConfig || nodeWithRestrictRunaiSystemExist != nodeAffinityMap["restrictRunaiSystem"]
 		nodeAffinityMap["restrictRunaiSystem"] = nodeWithRestrictRunaiSystemExist
 
 		if err != nil {
@@ -236,14 +275,14 @@ func updateRunaiConfigIfNeeded(client *client.Client, flags nodeRoleTypes, nodeW
 
 	}
 
-	if needToUpdateRunaiConfig {
-		err = unstructured.SetNestedMap(runaiConfig.Object, nodeAffinityMap, "spec.global.nodeAffinity")
+	if !reflect.DeepEqual(nodeAffinityMap, nodeAffinityMapOldValues) {
+		log.Debugf("Updating RunaiConfig with nodeAffinityMap: %v", nodeAffinityMap)
+		err = unstructured.SetNestedMap(runaiConfig.Object, nodeAffinityMap, "spec", "global", "nodeAffinity")
 		_, err := client.GetDynamicClient().Resource(runaiconfigResource).Namespace("runai").Update(runaiConfig, metav1.UpdateOptions{})
 		if err != nil {
 			fmt.Println("Failed to update runaiconfig")
 			os.Exit(1)
 		}
-		log.Debugf("Updated RunaiConfig")
 	}
 }
 
@@ -342,8 +381,6 @@ func Remove() *cobra.Command {
 			client := client.GetClient()
 			nodesInCluster := labelNodesWithRolesAndGetNodesInCluster(client, flags, args, false)
 			updateRunaiConfigurations(client, flags, nodesInCluster)
-			deleteResourcesIfNeeded(flags, client, nodesInCluster)
-
 			log.Infof("Successfully update nodes with roles")
 		},
 	}
