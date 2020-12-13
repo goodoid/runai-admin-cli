@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strings"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -27,9 +26,8 @@ var KubeConfig string
 
 var kubectlCmd = []string{"kubectl"}
 
-func LabelResource(resourceKind string, ResourceNameToLabel []string, labelsKeyValue []string, additionalFlags []string) error {
-	args := []string{"label", resourceKind, strings.Join(additionalFlags, ""), strings.Join(ResourceNameToLabel, " "), strings.Join(labelsKeyValue, " ")}
-	// args := []string{"label", "node",  "worker-cpu", "node-role.kubernetes.io/runai-cpu-worker=true"}
+func Apply(pathToFile string) error {
+	args := []string{"apply", "-f", pathToFile}
 	out, err := kubectl(args)
 
 	log.Debugf("%s\n", out)

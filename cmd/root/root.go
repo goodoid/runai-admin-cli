@@ -18,6 +18,7 @@ import (
 	"github.com/run-ai/runai-cli/cmd/global"
 	"github.com/run-ai/runai-cli/cmd/remove"
 	"github.com/run-ai/runai-cli/cmd/set"
+	"github.com/run-ai/runai-cli/cmd/upgrade"
 
 	"github.com/run-ai/runai-cli/pkg/config"
 	"github.com/run-ai/runai-cli/pkg/util"
@@ -48,6 +49,7 @@ func NewCommand() *cobra.Command {
 
 	command.AddCommand(set.Command())
 	command.AddCommand(remove.Command())
+	command.AddCommand(upgrade.Command())
 
 	return command
 }
