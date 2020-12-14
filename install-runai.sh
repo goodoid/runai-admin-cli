@@ -2,7 +2,7 @@
 set -e
 
 SCRIPT_NAME=runai
-OLD_SCRIPT_FILES=/etc/runai
+OLD_SCRIPT_FILES=/etc/runai-adm
 
 # If first argument is not empty,
 # use that for the installation path
@@ -25,7 +25,7 @@ if [ ! -d "${NEW_SCRIPT_FILES}" ]; then
   mkdir "${NEW_SCRIPT_FILES}"
 fi
 
-cp "${SCRIPT_DIR}"/runai "${NEW_SCRIPT_FILES}"
+cp "${SCRIPT_DIR}"/runai-adm "${NEW_SCRIPT_FILES}"
 cp "${SCRIPT_DIR}"/VERSION "${NEW_SCRIPT_FILES}"
 cp -R "${SCRIPT_DIR}"/charts "${NEW_SCRIPT_FILES}"
 
