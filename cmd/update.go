@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	url    = "https://api.github.com/repos/run-ai/runai-cli/releases/latest"
+	url    = "https://api.github.com/repos/run-ai/runai-admin-cli/releases/latest"
 	osName = runtime.GOOS
 	arch   = runtime.GOARCH
 )
@@ -32,7 +32,7 @@ type Asset struct {
 	DownloadUrl string `json:"browser_download_url"`
 }
 
-func NewUpdateCommand() *cobra.Command {
+func Update() *cobra.Command {
 	var command = &cobra.Command{
 		Use:   "update",
 		Short: "Update the Run:AI CLI to latest version.",
