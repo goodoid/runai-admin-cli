@@ -20,7 +20,6 @@ import (
 	"github.com/run-ai/runai-cli/cmd/update"
 	"github.com/run-ai/runai-cli/cmd/upgrade"
 	"github.com/run-ai/runai-cli/cmd/version"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/run-ai/runai-cli/pkg/config"
 	"github.com/run-ai/runai-cli/pkg/util"
@@ -36,7 +35,6 @@ func NewCommand() *cobra.Command {
 		Use:   config.CLIName,
 		Short: "runai-adm is a command line interface to a RunAI cluster",
 		Run: func(cmd *cobra.Command, args []string) {
-			log.Info("test")
 			cmd.HelpFunc()(cmd, args)
 		},
 		// Would be run before any child command
