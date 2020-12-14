@@ -17,16 +17,14 @@ package root
 import (
 	"github.com/run-ai/runai-cli/cmd/remove"
 	"github.com/run-ai/runai-cli/cmd/set"
+	"github.com/run-ai/runai-cli/cmd/update"
 	"github.com/run-ai/runai-cli/cmd/upgrade"
+	"github.com/run-ai/runai-cli/cmd/version"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/run-ai/runai-cli/pkg/config"
 	"github.com/run-ai/runai-cli/pkg/util"
 	"github.com/spf13/cobra"
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 )
 
@@ -53,28 +51,8 @@ func NewCommand() *cobra.Command {
 	command.AddCommand(set.Command())
 	command.AddCommand(remove.Command())
 	command.AddCommand(upgrade.Command())
+	command.AddCommand(version.Command())
+	command.AddCommand(update.Command())
 
 	return command
-}
-
-func createNamespace(client *kubernetes.Clientset, namespace string) error {
-	ns := &v1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: namespace,
-		},
-	}
-	_, err := client.CoreV1().Namespaces().Create(ns)
-	return err
-}
-
-func getNamespace(client *kubernetes.Clientset, namespace string) (*v1.Namespace, error) {
-	return client.CoreV1().Namespaces().Get(namespace, metav1.GetOptions{})
-}
-
-func ensureNamespace(client *kubernetes.Clientset, namespace string) error {
-	_, err := getNamespace(client, namespace)
-	if err != nil && errors.IsNotFound(err) {
-		return createNamespace(client, namespace)
-	}
-	return err
 }

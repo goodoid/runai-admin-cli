@@ -1,4 +1,4 @@
-package cmd
+package update
 
 import (
 	"encoding/json"
@@ -32,7 +32,7 @@ type Asset struct {
 	DownloadUrl string `json:"browser_download_url"`
 }
 
-func Update() *cobra.Command {
+func Command() *cobra.Command {
 	var command = &cobra.Command{
 		Use:   "update",
 		Short: "Update the Run:AI CLI to latest version.",
