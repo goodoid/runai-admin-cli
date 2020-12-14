@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/run-ai/runai-cli/cmd/constants"
 	"github.com/run-ai/runai-cli/pkg/client"
 	"github.com/run-ai/runai-cli/pkg/util/kubectl"
 	log "github.com/sirupsen/logrus"
@@ -50,20 +51,26 @@ func Command() *cobra.Command {
 			kubectl.Apply("https://raw.githubusercontent.com/run-ai/docs/master/install/runai_new_crds.yaml")
 			if upgradeFlags.filePath != "" {
 				log.Infof("Installing from file: %v", upgradeFlags.filePath)
-				for i := 0; i < 3; i++ {
+				for i := 0; i < 2; i++ {
 					kubectl.Apply(upgradeFlags.filePath)
 				}
 			}
 
 			client := client.GetClient()
-			deployment, err := client.GetClientset().AppsV1().Deployments("runai").Get("runai-operator", metav1.GetOptions{})
-			if err != nil {
-				fmt.Printf("Failed to get runai-operator, error: %v", err)
-				os.Exit(1)
+			var err error
+			var deployment *v1.Deployment
+			for i := 0; i < constants.NumberOfRetiresForApiServer; i++ {
+				deployment, err = client.GetClientset().AppsV1().Deployments("runai").Get("runai-operator", metav1.GetOptions{})
+				if err != nil {
+					continue
+				}
+				zeroReplicas := int32(0)
+				deployment.Spec.Replicas = &zeroReplicas
+				deployment, err = client.GetClientset().AppsV1().Deployments("runai").Update(deployment)
+				if err == nil {
+					break
+				}
 			}
-			zeroReplicas := int32(0)
-			deployment.Spec.Replicas = &zeroReplicas
-			deployment, err = client.GetClientset().AppsV1().Deployments("runai").Update(deployment)
 			if err != nil {
 				fmt.Printf("Failed to update runai-operator, error: %v", err)
 				os.Exit(1)
@@ -78,17 +85,32 @@ func Command() *cobra.Command {
 				client.GetClientset().BatchV1().Jobs("runai").Delete(job.Name, &metav1.DeleteOptions{})
 				log.Debugf("Deleted Job: %v", job.Name)
 			}
-
-			upgradeVersionIfNeeded(deployment, client, upgradeFlags)
-			deployment, err = client.GetClientset().AppsV1().Deployments("runai").Get("runai-operator", metav1.GetOptions{})
+			for i := 0; i < constants.NumberOfRetiresForApiServer; i++ {
+				err = upgradeVersionIfNeeded(deployment, client, upgradeFlags)
+				if err == nil {
+					break
+				}
+			}
 			if err != nil {
-				fmt.Printf("Failed to get runai-operator, error: %v", err)
+				fmt.Printf("Failed to upgrade cluster, error: %v", err)
 				os.Exit(1)
 			}
-			oneReplicas := int32(1)
-			deployment.Spec.Replicas = &oneReplicas
-			deployment, err = client.GetClientset().AppsV1().Deployments("runai").Update(deployment)
-
+			for i := 0; i < constants.NumberOfRetiresForApiServer; i++ {
+				deployment, err = client.GetClientset().AppsV1().Deployments("runai").Get("runai-operator", metav1.GetOptions{})
+				if err != nil {
+					continue
+				}
+				oneReplicas := int32(1)
+				deployment.Spec.Replicas = &oneReplicas
+				deployment, err = client.GetClientset().AppsV1().Deployments("runai").Update(deployment)
+				if err == nil {
+					break
+				}
+			}
+			if err != nil {
+				fmt.Printf("Failed to update runai-operator, error: %v", err)
+				os.Exit(1)
+			}
 			log.Println("Succesfully upgraded RunAi Cluster")
 		},
 	}
@@ -99,27 +121,27 @@ func Command() *cobra.Command {
 	return command
 }
 
-func upgradeVersionIfNeeded(deployment *v1.Deployment, client *client.Client, upgradeFlags upgradeFlags) {
+func upgradeVersionIfNeeded(deployment *v1.Deployment, client *client.Client, upgradeFlags upgradeFlags) error {
 	if upgradeFlags.operatorVersion == "" {
-		return
+		return nil
 	}
 
 	currentImage := strings.Split(deployment.Spec.Template.Spec.Containers[0].Image, ":")
 	currentTag := currentImage[1]
 	currentMinorVersion := strings.Split(currentTag, ".")
 	currentMinorInt, _ := strconv.Atoi(currentMinorVersion[2])
-	deployment.Spec.Template.Spec.Containers[0].Image = fmt.Sprintf("%s:%s", currentImage, upgradeFlags.operatorVersion)
+	deployment.Spec.Template.Spec.Containers[0].Image = fmt.Sprintf("%s:%s", currentImage[0], upgradeFlags.operatorVersion)
 	_, err := client.GetClientset().AppsV1().Deployments("runai").Update(deployment)
 	if err != nil {
-		fmt.Printf("Failed to update runai-operator with new tag, error: %v", err)
-		os.Exit(1)
+		log.Debugf("Failed to update runai-operator with new tag, error: %v", err)
+		return err
 	}
 
 	if currentMinorInt <= 77 {
 		stsList, err := client.GetClientset().AppsV1().StatefulSets("runai").List(metav1.ListOptions{})
 		if err != nil {
-			fmt.Printf("Failed to list statefulsets in runai namespace, error: %v", err)
-			os.Exit(1)
+			log.Debugf("Failed to list statefulsets in runai namespace, error: %v", err)
+			return err
 		}
 		for _, sts := range stsList.Items {
 			client.GetClientset().AppsV1().StatefulSets("runai").Delete(sts.Name, &metav1.DeleteOptions{})
@@ -128,12 +150,13 @@ func upgradeVersionIfNeeded(deployment *v1.Deployment, client *client.Client, up
 
 		pvcList, err := client.GetClientset().CoreV1().PersistentVolumeClaims("runai").List(metav1.ListOptions{})
 		if err != nil {
-			fmt.Printf("Failed to list pvc in runai namespace, error: %v", err)
-			os.Exit(1)
+			log.Debugf("Failed to list pvc in runai namespace, error: %v", err)
+			return err
 		}
 		for _, pvc := range pvcList.Items {
 			client.GetClientset().CoreV1().PersistentVolumeClaims("runai").Delete(pvc.Name, &metav1.DeleteOptions{})
 			log.Debugf("Deleted PVC: %v", pvc.Name)
 		}
 	}
+	return nil
 }

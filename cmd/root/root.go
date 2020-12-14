@@ -15,7 +15,6 @@
 package root
 
 import (
-	"github.com/run-ai/runai-cli/cmd/global"
 	"github.com/run-ai/runai-cli/cmd/remove"
 	"github.com/run-ai/runai-cli/cmd/set"
 	"github.com/run-ai/runai-cli/cmd/upgrade"
@@ -30,6 +29,8 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 )
 
+var LogLevel string
+
 // NewCommand returns a new instance of an Arena command
 func NewCommand() *cobra.Command {
 	var command = &cobra.Command{
@@ -40,12 +41,12 @@ func NewCommand() *cobra.Command {
 		},
 		// Would be run before any child command
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			util.SetLogLevel(global.LogLevel)
+			util.SetLogLevel(LogLevel)
 		},
 	}
 
 	// enable logging
-	command.PersistentFlags().StringVar(&global.LogLevel, "loglevel", "debug", "Set the logging level. One of: debug|info|warn|error")
+	command.PersistentFlags().StringVar(&LogLevel, "loglevel", "info", "Set the logging level. One of: debug|info|warn|error")
 
 	command.AddCommand(set.Command())
 	command.AddCommand(remove.Command())
