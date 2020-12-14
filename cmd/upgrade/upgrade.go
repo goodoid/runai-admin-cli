@@ -37,9 +37,10 @@ func Command() *cobra.Command {
 	upgradeFlags := upgradeFlags{}
 	var command = &cobra.Command{
 		Use:   "upgrade",
-		Short: "Upgrade RunAi",
+		Short: "Upgrade RunAi cluster",
+		Args:  cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
-			if !cmd.HasFlags() {
+			if cmd.Flags().NFlag() == 0 {
 				fmt.Println("No flags were provided")
 				cmd.HelpFunc()(cmd, args)
 				return
@@ -88,7 +89,7 @@ func Command() *cobra.Command {
 			deployment.Spec.Replicas = &oneReplicas
 			deployment, err = client.GetClientset().AppsV1().Deployments("runai").Update(deployment)
 
-			log.Infof("Succesfully upgraded RunAi Cluster")
+			log.Println("Succesfully upgraded RunAi Cluster")
 		},
 	}
 
@@ -132,7 +133,7 @@ func upgradeVersionIfNeeded(deployment *v1.Deployment, client *client.Client, up
 		}
 		for _, pvc := range pvcList.Items {
 			client.GetClientset().CoreV1().PersistentVolumeClaims("runai").Delete(pvc.Name, &metav1.DeleteOptions{})
-			log.Debugf("Deleted Statefulset: %v", pvc.Name)
+			log.Debugf("Deleted PVC: %v", pvc.Name)
 		}
 	}
 }

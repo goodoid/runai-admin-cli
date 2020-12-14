@@ -16,6 +16,7 @@ package set
 
 import (
 	"github.com/run-ai/runai-cli/cmd/noderole"
+	"github.com/run-ai/runai-cli/cmd/secret"
 	"github.com/spf13/cobra"
 )
 
@@ -29,6 +30,7 @@ func Command() *cobra.Command {
 	}
 
 	command.AddCommand(noderole.Set())
+	command.AddCommand(secret.Set())
 
 	return command
 }
