@@ -100,9 +100,9 @@ jobs:
             echo <<pipeline.git.tag>> > darwin/VERSION
             echo <<pipeline.git.tag>> > linux/VERSION
             cd darwin
-            tar -czvf runai-admin-cli-<<pipeline.git.tag>>-darwin-amd64.tar.gz runai install-runai.sh charts VERSION
+            tar -czvf runai-admin-cli-<<pipeline.git.tag>>-darwin-amd64.tar.gz runai-adm install-runai.sh charts VERSION
             cd ../linux
-            tar -czvf runai-admin-cli-<<pipeline.git.tag>>-linux-amd64.tar.gz runai install-runai.sh charts VERSION
+            tar -czvf runai-admin-cli-<<pipeline.git.tag>>-linux-amd64.tar.gz runai-adm install-runai.sh charts VERSION
             cd ../
       - run:
           name: upload-version
