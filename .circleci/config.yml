@@ -39,13 +39,13 @@ jobs:
         name: build-mac
         command: |
           make cli-darwin-amd64
-          tar --transform "s,bin/runai,runai," -czvf runai-admin-cli-darwin-amd64.tar.gz bin/runai install-runai.sh charts VERSION
+          tar --transform "s,bin/runai-adm,runai-adm," -czvf runai-admin-cli-darwin-amd64.tar.gz bin/runai-adm install-runai.sh charts VERSION
           mv runai-admin-cli-darwin-amd64.tar.gz workspace/binaries/runai-admin-cli-darwin-amd64.tar.gz
     - run: 
         name: build-linux
         command: |
           make cli-linux-amd64
-          tar --transform "s,bin/runai,runai," -czvf runai-admin-cli-linux-amd64.tar.gz bin/runai install-runai.sh charts VERSION
+          tar --transform "s,bin/runai-adm,runai-adm," -czvf runai-admin-cli-linux-amd64.tar.gz bin/runai-adm install-runai.sh charts VERSION
           mv runai-admin-cli-linux-amd64.tar.gz workspace/binaries/runai-admin-cli-linux-amd64.tar.gz
     - persist_to_workspace:
         root: workspace
