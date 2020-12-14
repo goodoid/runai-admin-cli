@@ -2,12 +2,12 @@
 set -e
 set -o xtrace
 
-SCRIPT_NAME=runai
+SCRIPT_NAME=runai-adm
 OLD_SCRIPT_FILES=/etc/runai-adm
 
 # If first argument is not empty,
 # use that for the installation path
-NEW_SCRIPT_FILES=${1:-/usr/local/runai}
+NEW_SCRIPT_FILES=${1:-/usr/local/runai-adm}
 
 SCRIPT_DIR="$(cd "$(dirname "$(readlink "$0" || echo "$0")")"; pwd)"
 
@@ -28,6 +28,5 @@ fi
 
 cp "${SCRIPT_DIR}"/runai-adm "${NEW_SCRIPT_FILES}"
 cp "${SCRIPT_DIR}"/VERSION "${NEW_SCRIPT_FILES}"
-cp -R "${SCRIPT_DIR}"/charts "${NEW_SCRIPT_FILES}"
 
 ln -sf "${NEW_SCRIPT_FILES}"/"${SCRIPT_NAME}" /usr/local/bin/"${SCRIPT_NAME}"
