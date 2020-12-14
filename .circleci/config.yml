@@ -107,7 +107,7 @@ jobs:
       - run:
           name: upload-version
           command: |
-            hub release edit -a darwin/runai-admin-cli-<<pipeline.git.tag>>-darwin-amd64.tar.gz#runai-cli-<<pipeline.git.tag>>-darwin-amd64.tar.gz -a linux/runai-admin-cli-<<pipeline.git.tag>>-linux-amd64.tar.gz#runai-admin-cli-<<pipeline.git.tag>>-linux-amd64.tar.gz -m "" <<pipeline.git.tag>>
+            hub release edit -a darwin/runai-admin-cli-<<pipeline.git.tag>>-darwin-amd64.tar.gz#runai-admin-cli-<<pipeline.git.tag>>-darwin-amd64.tar.gz -a linux/runai-admin-cli-<<pipeline.git.tag>>-linux-amd64.tar.gz#runai-admin-cli-<<pipeline.git.tag>>-linux-amd64.tar.gz -m "" <<pipeline.git.tag>>
 
 workflows:
   version: 2.1
