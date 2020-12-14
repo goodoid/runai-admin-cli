@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -e
+set -o xtrace
 
 SCRIPT_NAME=runai
 OLD_SCRIPT_FILES=/etc/runai-adm
