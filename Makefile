@@ -1,8 +1,7 @@
-PACKAGE=github.com/run-ai/runai-admin-cli
+PACKAGE=github.com/run-ai/runai-cli
 CURRENT_DIR=$(shell pwd)
 DIST_DIR=${CURRENT_DIR}/bin
-ARENA_CLI_NAME=runai-adm
-JOB_MONITOR=jobmon
+ARENA_CLI_NAME=runai
 OS_ARCH?=linux-amd64
 
 # Use .env file if exists - for local development
@@ -79,7 +78,6 @@ endif
 cli-linux-amd64:
 	mkdir -p bin
 	${GENERAL_BUILD_OPTIONS} GOOS=linux GOARCH=amd64 go build -tags 'netgo' -ldflags '${LDFLAGS}' -o ${DIST_DIR}/${ARENA_CLI_NAME} cmd/main/*.go
-	${GENERAL_BUILD_OPTIONS} GOOS=linux GOARCH=amd64 go build -ldflags '${LDFLAGS}' -o ${DIST_DIR}/${JOB_MONITOR} job-monitor/*.go
 
 .PHONY: cli-darwin-amd64
 cli-darwin-amd64:
