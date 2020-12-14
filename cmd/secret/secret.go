@@ -98,7 +98,7 @@ func updateSecrets(client *client.Client, args []string, shouldAddSecret bool) {
 
 	for secretName, value := range secretsToUpdateMap {
 		if !value {
-			log.Info("Secret: %v doesn't exist", secretName)
+			log.Infof("Secret: %v doesn't exist", secretName)
 		}
 	}
 }

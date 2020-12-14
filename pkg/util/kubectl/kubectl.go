@@ -63,7 +63,6 @@ func kubectl(args []string) (string, error) {
 	cmd := exec.Command(binary, args...)
 	cmd.Env = env
 
-	log.Debugf("command: %s", cmd.String())
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf(string(output))
