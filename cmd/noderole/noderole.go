@@ -184,12 +184,13 @@ func updateRunaiDeploymentWithAffinity(client *client.Client, flags nodeRoleType
 
 	var err error
 	var deployment *appsv1.Deployment
-	deployment, err = client.GetClientset().AppsV1().Deployments("runai").Get("runai-operator", metav1.GetOptions{})
-	if err != nil {
-		log.Infof("Failed to get runai-operator, error: %v", err)
-		os.Exit(1)
-	}
+
 	for i := 0; i < common.NumberOfRetiresForApiServer; i++ {
+		deployment, err = client.GetClientset().AppsV1().Deployments("runai").Get("runai-operator", metav1.GetOptions{})
+		if err != nil {
+			log.Infof("Failed to get runai-operator, error: %v", err)
+			os.Exit(1)
+		}
 		if nodeWithRestrictRunaiSystemExist {
 			deployment.Spec.Template.Spec.Affinity = &v1.Affinity{
 				NodeAffinity: &v1.NodeAffinity{
@@ -213,7 +214,6 @@ func updateRunaiDeploymentWithAffinity(client *client.Client, flags nodeRoleType
 		_, err = client.GetClientset().AppsV1().Deployments("runai").Update(deployment)
 		if err != nil {
 			log.Debugf("Failed to update runai-operator, attempt: %v error: %v", i, err)
-			deployment, _ = client.GetClientset().AppsV1().Deployments("runai").Get("runai-operator", metav1.GetOptions{})
 			continue
 		}
 		break
@@ -228,12 +228,14 @@ func updateRunaiDeploymentWithAffinity(client *client.Client, flags nodeRoleType
 
 func updateRunaiConfigIfNeeded(client *client.Client, flags nodeRoleTypes, nodeWithRestrictSchedulingExist, nodeWithRestrictRunaiSystemExist bool) {
 	runaiconfigResource := schema.GroupVersionResource{Group: "run.ai", Version: "v1", Resource: "runaiconfigs"}
-	runaiConfig, error := client.GetDynamicClient().Resource(runaiconfigResource).Namespace("runai").Get("runai", metav1.GetOptions{})
-	if error != nil {
-		fmt.Println("Failed to get RunaiConfig, RunAI isn't installed on the cluster")
-		os.Exit(1)
-	}
+	var error error
+	var runaiConfig *unstructured.Unstructured
 	for i := 0; i < common.NumberOfRetiresForApiServer; i++ {
+		runaiConfig, error = client.GetDynamicClient().Resource(runaiconfigResource).Namespace("runai").Get("runai", metav1.GetOptions{})
+		if error != nil {
+			fmt.Println("Failed to get RunaiConfig, RunAI isn't installed on the cluster")
+			os.Exit(1)
+		}
 		nodeAffinityMapOldValues, _, err := unstructured.NestedMap(runaiConfig.Object, "spec", "global", "nodeAffinity")
 		log.Debugf("RunaiConfig old values of nodeAffinityMap: %v", nodeAffinityMapOldValues)
 
@@ -252,12 +254,6 @@ func updateRunaiConfigIfNeeded(client *client.Client, flags nodeRoleTypes, nodeW
 
 		if flags.RunaiSystemWorker {
 			nodeAffinityMap["restrictRunaiSystem"] = nodeWithRestrictRunaiSystemExist
-
-			if err != nil {
-				fmt.Printf("Failed to get restrictRunaiSystem from runaiConfig, error: %v", err)
-				os.Exit(1)
-			}
-
 		}
 
 		if !reflect.DeepEqual(nodeAffinityMap, nodeAffinityMapOldValues) {
@@ -266,7 +262,6 @@ func updateRunaiConfigIfNeeded(client *client.Client, flags nodeRoleTypes, nodeW
 			_, error = client.GetDynamicClient().Resource(runaiconfigResource).Namespace("runai").Update(runaiConfig, metav1.UpdateOptions{})
 			if error != nil {
 				log.Debugf("Failed to update runaiconfig, attempt: %v, error: %v", i, error)
-				runaiConfig, _ = client.GetDynamicClient().Resource(runaiconfigResource).Namespace("runai").Get("runai", metav1.GetOptions{})
 				continue
 			}
 		}

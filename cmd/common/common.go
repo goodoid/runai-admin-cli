@@ -5,6 +5,7 @@ import (
 
 	"github.com/run-ai/runai-cli/pkg/client"
 	log "github.com/sirupsen/logrus"
+	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -13,12 +14,14 @@ const (
 )
 
 func ScaleRunaiOperator(client *client.Client, replicas int32) {
-	deployment, err := client.GetClientset().AppsV1().Deployments("runai").Get("runai-operator", metav1.GetOptions{})
-	if err != nil {
-		log.Infof("Failed to get runai operator, error: %v", err)
-		os.Exit(1)
-	}
+	var err error
+	var deployment *appsv1.Deployment
 	for i := 0; i < NumberOfRetiresForApiServer; i++ {
+		deployment, err = client.GetClientset().AppsV1().Deployments("runai").Get("runai-operator", metav1.GetOptions{})
+		if err != nil {
+			log.Infof("Failed to get runai operator, error: %v", err)
+			os.Exit(1)
+		}
 		deployment.Spec.Replicas = &replicas
 		deployment, err = client.GetClientset().AppsV1().Deployments("runai").Update(deployment)
 		if err != nil {
@@ -27,7 +30,6 @@ func ScaleRunaiOperator(client *client.Client, replicas int32) {
 		}
 		break
 	}
-
 	if err != nil {
 		log.Infof("Failed to update runai operator, error: %v", err)
 		os.Exit(1)
