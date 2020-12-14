@@ -39,13 +39,13 @@ jobs:
         name: build-mac
         command: |
           make cli-darwin-amd64
-          tar --transform "s,bin/runai-adm,runai-adm," -czvf runai-admin-cli-darwin-amd64.tar.gz bin/runai-adm install-runai.sh charts VERSION
+          tar --transform "s,bin/runai-adm,runai-adm," -czvf runai-admin-cli-darwin-amd64.tar.gz bin/runai-adm install-runai.sh VERSION
           mv runai-admin-cli-darwin-amd64.tar.gz workspace/binaries/runai-admin-cli-darwin-amd64.tar.gz
     - run: 
         name: build-linux
         command: |
           make cli-linux-amd64
-          tar --transform "s,bin/runai-adm,runai-adm," -czvf runai-admin-cli-linux-amd64.tar.gz bin/runai-adm install-runai.sh charts VERSION
+          tar --transform "s,bin/runai-adm,runai-adm," -czvf runai-admin-cli-linux-amd64.tar.gz bin/runai-adm install-runai.sh VERSION
           mv runai-admin-cli-linux-amd64.tar.gz workspace/binaries/runai-admin-cli-linux-amd64.tar.gz
     - persist_to_workspace:
         root: workspace
@@ -100,9 +100,9 @@ jobs:
             echo <<pipeline.git.tag>> > darwin/VERSION
             echo <<pipeline.git.tag>> > linux/VERSION
             cd darwin
-            tar -czvf runai-admin-cli-<<pipeline.git.tag>>-darwin-amd64.tar.gz runai-adm install-runai.sh charts VERSION
+            tar -czvf runai-admin-cli-<<pipeline.git.tag>>-darwin-amd64.tar.gz runai-adm install-runai.sh VERSION
             cd ../linux
-            tar -czvf runai-admin-cli-<<pipeline.git.tag>>-linux-amd64.tar.gz runai-adm install-runai.sh charts VERSION
+            tar -czvf runai-admin-cli-<<pipeline.git.tag>>-linux-amd64.tar.gz runai-adm install-runai.sh VERSION
             cd ../
       - run:
           name: upload-version
