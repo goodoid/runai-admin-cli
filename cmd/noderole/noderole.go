@@ -36,6 +36,11 @@ func Set() *cobra.Command {
 		Aliases: []string{"node-roles"},
 		Short:   "Set node with roles",
 		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) == 0 && !flags.AllNodes {
+				fmt.Println("No nodes were selected")
+				cmd.HelpFunc()(cmd, args)
+				os.Exit(1)
+			}
 			client := client.GetClient()
 			nodesInCluster := labelNodesWithRolesAndGetNodesInCluster(client, flags, args, true)
 			updateRunaiConfigurations(client, flags, nodesInCluster)
@@ -373,6 +378,11 @@ func Remove() *cobra.Command {
 		Aliases: []string{"node-roles"},
 		Short:   "remove node with roles",
 		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) == 0 && !flags.AllNodes {
+				fmt.Println("No nodes were selected")
+				cmd.HelpFunc()(cmd, args)
+				os.Exit(1)
+			}
 			client := client.GetClient()
 			nodesInCluster := labelNodesWithRolesAndGetNodesInCluster(client, flags, args, false)
 			updateRunaiConfigurations(client, flags, nodesInCluster)
