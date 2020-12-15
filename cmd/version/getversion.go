@@ -1,4 +1,4 @@
-package getversion
+package version
 
 import (
 	"fmt"
@@ -10,9 +10,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func Command() *cobra.Command {
+func GetVersion() *cobra.Command {
 	var command = &cobra.Command{
-		Use:   "get-version",
+		Use:   "version",
 		Short: "get cluster version",
 		Run: func(cmd *cobra.Command, args []string) {
 			client := client.GetClient()
