@@ -22,7 +22,7 @@ func GetVersion() *cobra.Command {
 				os.Exit(1)
 			}
 			currentImage := strings.Split(deployment.Spec.Template.Spec.Containers[0].Image, ":")
-			fmt.Printf("RunAi version: %v\n", currentImage[1])
+			fmt.Printf("Run:AI version: %v\n", currentImage[1])
 		},
 	}
 
