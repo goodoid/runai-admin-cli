@@ -13,7 +13,7 @@ import (
 func GetVersion() *cobra.Command {
 	var command = &cobra.Command{
 		Use:   "version",
-		Short: "get cluster version",
+		Short: "Get cluster version",
 		Run: func(cmd *cobra.Command, args []string) {
 			client := client.GetClient()
 			deployment, err := client.GetClientset().AppsV1().Deployments("runai").Get("runai-operator", metav1.GetOptions{})

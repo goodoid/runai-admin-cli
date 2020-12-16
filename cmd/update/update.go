@@ -63,7 +63,7 @@ func Command() *cobra.Command {
 			}
 
 			if matchingAsset.DownloadUrl == "" {
-				log.Errorf("Could not find matching asset for %s-%s", osName, arch)
+				log.Errorf("Could not find a matching asset for %s-%s", osName, arch)
 				os.Exit(1)
 			}
 
@@ -71,7 +71,7 @@ func Command() *cobra.Command {
 			downloadPath, err := downloadFile(matchingAsset.DownloadUrl, matchingAsset.Name)
 
 			if err != nil {
-				log.Errorf("Could not download archive file %s", err)
+				log.Errorf("Could not download an archive file %s", err)
 				os.Exit(1)
 			}
 
@@ -107,7 +107,7 @@ func Command() *cobra.Command {
 				os.Exit(1)
 			}
 
-			log.Infof("Successfully installed new version")
+			log.Infof("Successfully installed a new version")
 		},
 	}
 

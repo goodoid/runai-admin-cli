@@ -19,20 +19,20 @@ func ScaleRunaiOperator(client *client.Client, replicas int32) {
 	for i := 0; i < NumberOfRetiresForApiServer; i++ {
 		deployment, err = client.GetClientset().AppsV1().Deployments("runai").Get("runai-operator", metav1.GetOptions{})
 		if err != nil {
-			log.Infof("Failed to get runai operator, error: %v", err)
+			log.Infof("Failed to get Run:AI operator, error: %v", err)
 			os.Exit(1)
 		}
 		deployment.Spec.Replicas = &replicas
 		deployment, err = client.GetClientset().AppsV1().Deployments("runai").Update(deployment)
 		if err != nil {
-			log.Debugf("Failed to update runai operator, attempt: %v, error: %v", i, err)
+			log.Debugf("Failed to update Run:AI operator, attempt: %v, error: %v", i, err)
 			continue
 		}
 		break
 	}
 	if err != nil {
-		log.Infof("Failed to update runai operator, error: %v", err)
+		log.Infof("Failed to update Run:AI operator, error: %v", err)
 		os.Exit(1)
 	}
-	log.Infof("Scaled RunAI Operator to: %v", replicas)
+	log.Infof("Scaled Run:AI operator to: %v", replicas)
 }

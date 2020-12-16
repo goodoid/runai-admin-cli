@@ -44,7 +44,7 @@ func Command() *cobra.Command {
 				kubectl.Apply(upgradeFlags.filePath) // need to remove the crds from this file
 			}
 
-			log.Println("Successfully installed RunAi Cluster")
+			log.Println("Successfully installed Run:AI Cluster")
 		},
 	}
 

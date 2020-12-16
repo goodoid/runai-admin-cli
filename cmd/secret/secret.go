@@ -71,7 +71,7 @@ func Remove() *cobra.Command {
 func updateSecrets(client *client.Client, args []string, shouldAddSecret bool) {
 	secretList, err := client.GetClientset().CoreV1().Secrets("runai").List(metav1.ListOptions{})
 	if err != nil {
-		fmt.Printf("Failed to list all secrets from RunAi Namespace, error: %v", err)
+		fmt.Printf("Failed to list all secrets in the runai Namespace, error: %v", err)
 		os.Exit(1)
 	}
 
@@ -98,7 +98,7 @@ func updateSecrets(client *client.Client, args []string, shouldAddSecret bool) {
 
 	for secretName, value := range secretsToUpdateMap {
 		if !value {
-			log.Infof("Secret: %v doesn't exist", secretName)
+			log.Infof("Secret: %v does not exist", secretName)
 		}
 	}
 }

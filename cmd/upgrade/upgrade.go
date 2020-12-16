@@ -38,7 +38,7 @@ func Command() *cobra.Command {
 	upgradeFlags := upgradeFlags{}
 	var command = &cobra.Command{
 		Use:   "upgrade",
-		Short: "Upgrade RunAi cluster",
+		Short: "Upgrade Run:AI cluster",
 		Args:  cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			if cmd.Flags().NFlag() == 0 {
@@ -62,7 +62,7 @@ func Command() *cobra.Command {
 				common.ScaleRunaiOperator(client, 0)
 				josList, err := client.GetClientset().BatchV1().Jobs("runai").List(metav1.ListOptions{})
 				if err != nil {
-					fmt.Printf("Failed to list jobs in runai namespace, error: %v", err)
+					fmt.Printf("Failed to list jobs in the runai namespace, error: %v", err)
 					os.Exit(1)
 				}
 				for _, job := range josList.Items {
@@ -75,12 +75,12 @@ func Command() *cobra.Command {
 				common.ScaleRunaiOperator(client, 1)
 			}
 
-			log.Println("Successfully upgraded RunAi Cluster")
+			log.Println("Successfully upgraded the Run:AI Cluster")
 		},
 	}
 
-	command.Flags().StringVarP(&upgradeFlags.filePath, "file", "f", "", "path of runai config .yaml file")
-	command.Flags().StringVarP(&upgradeFlags.operatorVersion, "version", "v", "", "set version of runai operator")
+	command.Flags().StringVarP(&upgradeFlags.filePath, "file", "f", "", "Path of a Run:AI configuration .yaml file")
+	command.Flags().StringVarP(&upgradeFlags.operatorVersion, "version", "v", "", "Set a Run:AI version (e.g. 1.0.45)")
 
 	return command
 }
@@ -92,14 +92,14 @@ func upgradeVersion(client *client.Client, upgradeFlags upgradeFlags) {
 	for i := 0; i < common.NumberOfRetiresForApiServer; i++ {
 		deployment, err = client.GetClientset().AppsV1().Deployments("runai").Get("runai-operator", metav1.GetOptions{})
 		if err != nil {
-			log.Infof("runai operator doesnt exist on runai namespace, error: %v", err)
+			log.Infof("Run:AI operator does not exist on runai namespace, error: %v", err)
 			os.Exit(1)
 		}
 		currentImage := strings.Split(deployment.Spec.Template.Spec.Containers[0].Image, ":")
 		currentTag := currentImage[1]
 		if currentTag == "latest" {
 			if upgradeFlags.operatorVersion != "latest" {
-				log.Infof("Setting image to 'latest' because old image was 'latest'")
+				log.Infof("Setting image to 'latest' as an old image was 'latest'")
 			}
 		} else {
 			currentMinorVersion := strings.Split(currentTag, ".")
@@ -109,20 +109,20 @@ func upgradeVersion(client *client.Client, upgradeFlags upgradeFlags) {
 		}
 		_, err = client.GetClientset().AppsV1().Deployments("runai").Update(deployment)
 		if err != nil {
-			log.Debugf("Failed to update deployment runai operator, attempt: %v, error: %v", i, err)
+			log.Debugf("Failed to update the deployment of the Run:AI operator, attempt: %v, error: %v", i, err)
 			continue
 		}
 		break
 	}
 	if err != nil {
-		log.Infof("Failed to update runai-operator with new tag, error: %v", err)
+		log.Infof("Failed to update Run:AI operator with new tag, error: %v", err)
 		os.Exit(1)
 	}
 
 	if shouldDeleteStsAndPvc {
 		stsList, error := client.GetClientset().AppsV1().StatefulSets("runai").List(metav1.ListOptions{})
 		if error != nil {
-			log.Infof("Failed to list statefulsets in runai namespace, error: %v", err)
+			log.Infof("Failed to list statefulsets in the runai namespace, error: %v", err)
 			os.Exit(1)
 		}
 		for _, sts := range stsList.Items {
@@ -132,7 +132,7 @@ func upgradeVersion(client *client.Client, upgradeFlags upgradeFlags) {
 
 		pvcList, err := client.GetClientset().CoreV1().PersistentVolumeClaims("runai").List(metav1.ListOptions{})
 		if err != nil {
-			log.Infof("Failed to list PVCs in runai namespace, error: %v", err)
+			log.Infof("Failed to list PVCs in the runai namespace, error: %v", err)
 			os.Exit(1)
 		}
 		for _, pvc := range pvcList.Items {

@@ -23,7 +23,7 @@ import (
 func Command() *cobra.Command {
 	var command = &cobra.Command{
 		Use:   "remove",
-		Short: "remove resources.",
+		Short: "Remove resources",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmd.HelpFunc()(cmd, args)
 		},

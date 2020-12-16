@@ -49,10 +49,10 @@ func Set() *cobra.Command {
 		},
 	}
 
-	command.Flags().BoolVar(&flags.AllNodes, "all", false, "set all nodes")
-	command.Flags().BoolVar(&flags.CpuWorker, "cpu-worker", false, "set nodes with node-role of CPU Worker.")
-	command.Flags().BoolVar(&flags.GpuWorker, "gpu-worker", false, "set nodes with node-role of GPU Worker.")
-	command.Flags().BoolVar(&flags.RunaiSystemWorker, "runai-system-worker", false, "set nodes with node-role of Runai System Worker.")
+	command.Flags().BoolVar(&flags.AllNodes, "all", false, "Set all nodes.")
+	command.Flags().BoolVar(&flags.CpuWorker, "cpu-worker", false, "Set nodes with node-role of CPU Worker.")
+	command.Flags().BoolVar(&flags.GpuWorker, "gpu-worker", false, "Set nodes with node-role of GPU Worker.")
+	command.Flags().BoolVar(&flags.RunaiSystemWorker, "runai-system-worker", false, "Set nodes with node-role of Run:AI System Worker.")
 	return command
 }
 
@@ -62,7 +62,7 @@ func deletePodsIfNeeded(flags nodeRoleTypes, client *client.Client, nodesInClust
 	}
 	runaiPods, err := client.GetClientset().CoreV1().Pods("runai").List(metav1.ListOptions{})
 	if err != nil {
-		fmt.Println("Failed to list pods from runai namespace")
+		fmt.Println("Failed to list pods from the runai namespace")
 		os.Exit(1)
 	}
 
@@ -100,13 +100,13 @@ func checkIfLabelIsNotStatisfiedAndDeleteIfNeeded(pod v1.Pod, nodesInCluster map
 			return true
 		}
 		client.GetClientset().CoreV1().Pods("runai").Delete(pod.Name, &metav1.DeleteOptions{})
-		log.Debugf("Deleted runai pod: %v", pod.Name)
+		log.Debugf("Deleted Run:AI pod: %v", pod.Name)
 	}
 	return false
 }
 
 func deleteResourcesIfNeeded(flags nodeRoleTypes, client *client.Client, nodesInCluster map[string]v1.Node, nodeWithRestrictRunaiSystemExist, nodeWithRestrictSchedulingExist bool) {
-	log.Info("Deleting old RunAi resources")
+	log.Info("Deleting old Run:AI resources")
 	deletePVCAndStsIfNeeded(flags, client, nodesInCluster, nodeWithRestrictRunaiSystemExist)
 	deleteJobsIfNeeded(client)
 	deletePodsIfNeeded(flags, client, nodesInCluster, nodeWithRestrictRunaiSystemExist, nodeWithRestrictSchedulingExist)
@@ -134,7 +134,7 @@ func deletePVCAndStsIfNeeded(flags nodeRoleTypes, client *client.Client, nodesIn
 	if found {
 		nodeInfo, found := nodesInCluster[pvcNode]
 		if !found {
-			fmt.Printf("Failed to find pvc node in cluster, node: %v\n", pvcNode)
+			fmt.Printf("Failed to find PVC node in cluster, node: %v\n", pvcNode)
 			os.Exit(1)
 		}
 
@@ -148,7 +148,7 @@ func deletePVCAndStsIfNeeded(flags nodeRoleTypes, client *client.Client, nodesIn
 
 	stsList, err := client.GetClientset().AppsV1().StatefulSets("runai").List(metav1.ListOptions{})
 	if err != nil {
-		log.Debugf("Failed to list sts from runai namespace")
+		log.Debugf("Failed to list statefulsets in the runai namespace")
 		return
 	}
 
@@ -159,7 +159,7 @@ func deletePVCAndStsIfNeeded(flags nodeRoleTypes, client *client.Client, nodesIn
 }
 
 func updateRunaiConfigurations(client *client.Client, flags nodeRoleTypes, nodesInCluster map[string]v1.Node) {
-	log.Info("Updating RunAi configurations")
+	log.Info("Updating Run:AI configurations")
 	nodeWithRestrictSchedulingExist := false
 	nodeWithRestrictRunaiSystemExist := false
 	for _, nodeInfo := range nodesInCluster {
@@ -173,8 +173,8 @@ func updateRunaiConfigurations(client *client.Client, flags nodeRoleTypes, nodes
 			nodeWithRestrictRunaiSystemExist = foundSystem
 		}
 	}
-	log.Debugf("nodes with cpu or gpu workers exists: %v", nodeWithRestrictSchedulingExist)
-	log.Debugf("nodes with runai system workers exists: %v", nodeWithRestrictRunaiSystemExist)
+	log.Debugf("Nodes with cpu or gpu workers already exist: %v", nodeWithRestrictSchedulingExist)
+	log.Debugf("Nodes with runai system workers already exist: %v", nodeWithRestrictRunaiSystemExist)
 	common.ScaleRunaiOperator(client, 0)
 	updateRunaiDeploymentWithAffinity(client, flags, nodeWithRestrictRunaiSystemExist)
 	updateRunaiConfigIfNeeded(client, flags, nodeWithRestrictSchedulingExist, nodeWithRestrictRunaiSystemExist)
@@ -218,17 +218,17 @@ func updateRunaiDeploymentWithAffinity(client *client.Client, flags nodeRoleType
 		}
 		_, err = client.GetClientset().AppsV1().Deployments("runai").Update(deployment)
 		if err != nil {
-			log.Debugf("Failed to update runai-operator, attempt: %v error: %v", i, err)
+			log.Debugf("Failed to update the Run:AI operator, attempt: %v error: %v", i, err)
 			continue
 		}
 		break
 	}
 	if err != nil {
-		log.Infof("Failed to update runai-operator, error: %v", err)
+		log.Infof("Failed to update the Run:AI operator, error: %v", err)
 		os.Exit(1)
 	}
 
-	log.Debugf("Updated runai operator to have node affinity and scaled to 0 replicas")
+	log.Debugf("Updated Run:AI operator to have node affinity and scaled to 0 replicas")
 }
 
 func updateRunaiConfigIfNeeded(client *client.Client, flags nodeRoleTypes, nodeWithRestrictSchedulingExist, nodeWithRestrictRunaiSystemExist bool) {
@@ -238,7 +238,7 @@ func updateRunaiConfigIfNeeded(client *client.Client, flags nodeRoleTypes, nodeW
 	for i := 0; i < common.NumberOfRetiresForApiServer; i++ {
 		runaiConfig, error = client.GetDynamicClient().Resource(runaiconfigResource).Namespace("runai").Get("runai", metav1.GetOptions{})
 		if error != nil {
-			fmt.Println("Failed to get RunaiConfig, RunAI isn't installed on the cluster")
+			fmt.Println("Failed to get RunaiConfig, Run:AI is not installed on the cluster")
 			os.Exit(1)
 		}
 		nodeAffinityMapOldValues, _, err := unstructured.NestedMap(runaiConfig.Object, "spec", "global", "nodeAffinity")
@@ -285,7 +285,7 @@ func labelNodesWithRolesAndGetNodesInCluster(client *client.Client, flags nodeRo
 	allNodeClusters := map[string]v1.Node{}
 	nodesInCluster, err := client.GetClientset().CoreV1().Nodes().List(metav1.ListOptions{})
 	if err != nil || len(nodesInCluster.Items) == 0 {
-		fmt.Println("Failed to list nodesInCluster")
+		fmt.Println("Failed to list nodes in cluster")
 		os.Exit(1)
 	}
 
@@ -376,7 +376,7 @@ func Remove() *cobra.Command {
 	var command = &cobra.Command{
 		Use:     "node-role NODE_NAME",
 		Aliases: []string{"node-roles"},
-		Short:   "remove node with roles",
+		Short:   "Remove node with roles",
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) == 0 && !flags.AllNodes {
 				fmt.Println("No nodes were selected")
@@ -386,13 +386,13 @@ func Remove() *cobra.Command {
 			client := client.GetClient()
 			nodesInCluster := labelNodesWithRolesAndGetNodesInCluster(client, flags, args, false)
 			updateRunaiConfigurations(client, flags, nodesInCluster)
-			log.Infof("Successfully update nodes with roles")
+			log.Infof("Successfully updated nodes with roles")
 		},
 	}
 
-	command.Flags().BoolVar(&flags.AllNodes, "all", false, "set all nodes")
-	command.Flags().BoolVar(&flags.CpuWorker, "cpu-worker", false, "set nodes with node-role of CPU Worker.")
-	command.Flags().BoolVar(&flags.GpuWorker, "gpu-worker", false, "set nodes with node-role of GPU Worker.")
-	command.Flags().BoolVar(&flags.RunaiSystemWorker, "runai-system-worker", false, "set nodes with node-role of Runai System Worker.")
+	command.Flags().BoolVar(&flags.AllNodes, "all", false, "Set all nodes")
+	command.Flags().BoolVar(&flags.CpuWorker, "cpu-worker", false, "Set nodes with node-role of CPU Worker.")
+	command.Flags().BoolVar(&flags.GpuWorker, "gpu-worker", false, "Set nodes with node-role of GPU Worker.")
+	command.Flags().BoolVar(&flags.RunaiSystemWorker, "runai-system-worker", false, "Set nodes with node-role of Run:AI System Worker.")
 	return command
 }
