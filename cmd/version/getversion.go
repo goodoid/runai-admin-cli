@@ -18,7 +18,7 @@ func GetVersion() *cobra.Command {
 			client := client.GetClient()
 			deployment, err := client.GetClientset().AppsV1().Deployments("runai").Get("runai-operator", metav1.GetOptions{})
 			if err != nil {
-				fmt.Println("RunAi is not running on cluster")
+				fmt.Println("Run:AI is not running on a cluster")
 				os.Exit(1)
 			}
 			currentImage := strings.Split(deployment.Spec.Template.Spec.Containers[0].Image, ":")
