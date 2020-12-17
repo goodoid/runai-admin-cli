@@ -30,7 +30,7 @@ func Command() *cobra.Command {
 	upgradeFlags := upgradeFlags{}
 	var command = &cobra.Command{
 		Use:   "install",
-		Short: "Install RunAi cluster",
+		Short: "Install a Run:AI cluster.",
 		Args:  cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			if cmd.Flags().NFlag() == 0 {
