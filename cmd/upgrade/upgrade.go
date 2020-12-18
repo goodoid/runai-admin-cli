@@ -120,24 +120,34 @@ func upgradeVersion(client *client.Client, upgradeFlags upgradeFlags) {
 	}
 
 	if shouldDeleteStsAndPvc {
-		stsList, error := client.GetClientset().AppsV1().StatefulSets("runai").List(metav1.ListOptions{})
-		if error != nil {
-			log.Infof("Failed to list statefulsets in the runai namespace, error: %v", err)
-			os.Exit(1)
-		}
-		for _, sts := range stsList.Items {
-			client.GetClientset().AppsV1().StatefulSets("runai").Delete(sts.Name, &metav1.DeleteOptions{})
-			log.Debugf("Deleted Statefulset: %v", sts.Name)
+		err = client.GetClientset().AppsV1().StatefulSets("runai").Delete("runai-db", &metav1.DeleteOptions{})
+		if err == nil {
+			log.Debugf("Deleted Statefulset: runai-db")
 		}
 
-		pvcList, err := client.GetClientset().CoreV1().PersistentVolumeClaims("runai").List(metav1.ListOptions{})
-		if err != nil {
-			log.Infof("Failed to list PVCs in the runai namespace, error: %v", err)
-			os.Exit(1)
+		err = client.GetClientset().AppsV1().StatefulSets("runai").Delete("runai-prometheus-pushgateway", &metav1.DeleteOptions{})
+		if err == nil {
+			log.Debugf("Deleted Statefulset: runai-prometheus-pushgateway")
 		}
-		for _, pvc := range pvcList.Items {
-			client.GetClientset().CoreV1().PersistentVolumeClaims("runai").Delete(pvc.Name, &metav1.DeleteOptions{})
-			log.Debugf("Deleted PVC: %v", pvc.Name)
+
+		err = client.GetClientset().AppsV1().StatefulSets("runai").Delete("prometheus-runai-prometheus-operator-prometheus", &metav1.DeleteOptions{})
+		if err == nil {
+			log.Debugf("Deleted Statefulset: prometheus-runai-prometheus-operator-prometheus")
+		}
+
+		err = client.GetClientset().CoreV1().PersistentVolumeClaims("runai").Delete("data-runai-db-0", &metav1.DeleteOptions{})
+		if err == nil {
+			log.Debugf("Deleted PVC: data-runai-db-0")
+		}
+
+		err = client.GetClientset().CoreV1().PersistentVolumeClaims("runai").Delete("prometheus-runai-prometheus-operator-prometheus-db-prometheus-runai-prometheus-operator-prometheus-0", &metav1.DeleteOptions{})
+		if err == nil {
+			log.Debugf("Deleted PVC: prometheus-runai-prometheus-operator-prometheus-db-prometheus-runai-prometheus-operator-prometheus-0")
+		}
+
+		err = client.GetClientset().CoreV1().PersistentVolumeClaims("runai").Delete("storage-volume-runai-prometheus-pushgateway-0", &metav1.DeleteOptions{})
+		if err == nil {
+			log.Debugf("Deleted PVC: storage-volume-runai-prometheus-pushgateway-0")
 		}
 	}
 }
