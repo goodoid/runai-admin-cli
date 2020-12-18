@@ -19,6 +19,7 @@ import (
 	"github.com/run-ai/runai-cli/cmd/install"
 	"github.com/run-ai/runai-cli/cmd/remove"
 	"github.com/run-ai/runai-cli/cmd/set"
+	"github.com/run-ai/runai-cli/cmd/uninstall"
 	"github.com/run-ai/runai-cli/cmd/update"
 	"github.com/run-ai/runai-cli/cmd/upgrade"
 	"github.com/run-ai/runai-cli/cmd/version"
@@ -55,6 +56,7 @@ func NewCommand() *cobra.Command {
 	command.AddCommand(update.Command())
 	command.AddCommand(getversion.Command())
 	command.AddCommand(install.Command())
+	command.AddCommand(uninstall.Command())
 
 	return command
 }

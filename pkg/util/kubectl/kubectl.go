@@ -38,6 +38,19 @@ func Apply(pathToFile string) error {
 	return err
 }
 
+func Delete(objectsNames []string) error {
+	args := []string{"delete"}
+	args = append(args, objectsNames...)
+	out, err := kubectl(args)
+
+	log.Debugf("%s\n", out)
+	if err != nil {
+		log.Debugf("Failed to execute %s, %v with %v", "kubectl", args, err)
+	}
+
+	return err
+}
+
 /**
 * dry-run creating kubernetes App Info for delete in future
 * Exec /usr/local/bin/kubectl, [create --dry-run -f /tmp/values313606961 --namespace default]
