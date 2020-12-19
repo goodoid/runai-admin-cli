@@ -37,7 +37,7 @@ func Command() *cobra.Command {
 	uninstallFlags := uninstallFlags{}
 	var command = &cobra.Command{
 		Use:   "uninstall",
-		Short: "Uninstall a Run:AI cluster. By default will delete all resources beside runai PVCs and 'runai' namespace",
+		Short: "Uninstall the Run:AI cluster. By default will delete all resources beside runai PVCs and 'runai' namespace",
 		Args:  cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			client := client.GetClient()
@@ -110,8 +110,8 @@ func deleteRunaiConfig(client *client.Client) {
 	for i := 0; i < common.NumberOfRetiresForApiServer; i++ {
 		runaiConfig, error = client.GetDynamicClient().Resource(runaiconfigResource).Namespace("runai").Get("runai", metav1.GetOptions{})
 		if error != nil {
-			fmt.Println("Failed to get RunaiConfig, Run:AI is not installed on the cluster")
-			os.Exit(1)
+			fmt.Println("Failed to get RunaiConfig")
+			return
 		}
 		var emptyMap []string
 		err := unstructured.SetNestedStringSlice(runaiConfig.Object, emptyMap, "metadata", "finalizers")
