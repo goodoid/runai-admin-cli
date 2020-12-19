@@ -29,51 +29,24 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-type uninstallFlags struct {
-	deleteAll bool
-}
-
 func Command() *cobra.Command {
-	uninstallFlags := uninstallFlags{}
 	var command = &cobra.Command{
 		Use:   "uninstall",
-		Short: "Uninstall the Run:AI cluster. By default will delete all resources beside runai PVCs and 'runai' namespace",
+		Short: "Uninstall the Run:AI cluster",
 		Args:  cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			client := client.GetClient()
 			deleteRunaiConfig(client)
 			deleteResourcesByKubectlCommand()
-			deleteAllResources(client, uninstallFlags)
+			deleteAllResources(client)
 			log.Println("Successfully installed Run:AI Cluster")
 		},
 	}
 
-	command.Flags().BoolVarP(&uninstallFlags.deleteAll, "all", "A", false, "use flag to delete PVCs and 'runai' namespace")
-
 	return command
 }
 
-func deletePvcsAndNamespace(client *client.Client) {
-	pvcs, err := client.GetClientset().CoreV1().PersistentVolumeClaims("runai").List(metav1.ListOptions{})
-	if err == nil {
-		for _, pvc := range pvcs.Items {
-			client.GetClientset().CoreV1().PersistentVolumeClaims("runai").Delete(pvc.Name, &metav1.DeleteOptions{})
-			log.Debugf("deleted pvc %v", pvc.Name)
-		}
-	}
-	log.Infof("Deleted PVCs from runai namespace")
-
-	err = client.GetClientset().CoreV1().Namespaces().Delete("runai", &metav1.DeleteOptions{})
-	if err != nil {
-		for _, pvc := range pvcs.Items {
-			client.GetClientset().CoreV1().PersistentVolumeClaims("runai").Delete(pvc.Name, &metav1.DeleteOptions{})
-			log.Infof("Failed to delete namespace runai, error %v", err)
-			os.Exit(1)
-		}
-	}
-	log.Infof("Deleted namespace runai")
-}
-func deleteAllResources(client *client.Client, uninstallFlags uninstallFlags) {
+func deleteAllResources(client *client.Client) {
 	deployments, err := client.GetClientset().AppsV1().Deployments("runai").List(metav1.ListOptions{})
 	if err == nil {
 		for _, deployment := range deployments.Items {
@@ -98,9 +71,24 @@ func deleteAllResources(client *client.Client, uninstallFlags uninstallFlags) {
 		}
 	}
 
-	if uninstallFlags.deleteAll {
-		deletePvcsAndNamespace(client)
+	pvcs, err := client.GetClientset().CoreV1().PersistentVolumeClaims("runai").List(metav1.ListOptions{})
+	if err == nil {
+		for _, pvc := range pvcs.Items {
+			client.GetClientset().CoreV1().PersistentVolumeClaims("runai").Delete(pvc.Name, &metav1.DeleteOptions{})
+			log.Debugf("deleted pvc %v", pvc.Name)
+		}
 	}
+	log.Infof("Deleted PVCs from runai namespace")
+
+	err = client.GetClientset().CoreV1().Namespaces().Delete("runai", &metav1.DeleteOptions{})
+	if err != nil {
+		for _, pvc := range pvcs.Items {
+			client.GetClientset().CoreV1().PersistentVolumeClaims("runai").Delete(pvc.Name, &metav1.DeleteOptions{})
+			log.Infof("Failed to delete namespace runai, error %v", err)
+			os.Exit(1)
+		}
+	}
+	log.Infof("Deleted namespace runai")
 }
 
 func deleteRunaiConfig(client *client.Client) {
