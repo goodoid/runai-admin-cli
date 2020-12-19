@@ -72,13 +72,13 @@ func deleteAllResources(client *client.Client) {
 	}
 
 	pvcs, err := client.GetClientset().CoreV1().PersistentVolumeClaims("runai").List(metav1.ListOptions{})
-	if err == nil {
+	if err == nil && len(pvcs.Items) > 0 {
 		for _, pvc := range pvcs.Items {
 			client.GetClientset().CoreV1().PersistentVolumeClaims("runai").Delete(pvc.Name, &metav1.DeleteOptions{})
 			log.Debugf("deleted pvc %v", pvc.Name)
 		}
+		log.Infof("Deleted PVCs from runai namespace")
 	}
-	log.Infof("Deleted PVCs from runai namespace")
 
 	err = client.GetClientset().CoreV1().Namespaces().Delete("runai", &metav1.DeleteOptions{})
 	if err != nil {
