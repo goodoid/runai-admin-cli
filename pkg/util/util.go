@@ -1,9 +1,14 @@
 package util
 
 import (
+	"bufio"
+	"fmt"
+	"golang.org/x/crypto/ssh/terminal"
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
+	"syscall"
 )
 
 var (
@@ -34,4 +39,33 @@ func GetRunaiConfigDir() (string, error) {
 	}
 
 	return path.Dir(realPath), nil
+}
+
+// ReadString reads a string from the stdin.
+func ReadString(prompt string) (string, error) {
+	if _, err := fmt.Fprint(os.Stderr, prompt); err != nil {
+		return "", fmt.Errorf("write error: %v", err)
+	}
+	r := bufio.NewReader(os.Stdin)
+	s, err := r.ReadString('\n')
+	if err != nil {
+		return "", fmt.Errorf("read error: %v", err)
+	}
+	s = strings.TrimRight(s, "\r\n")
+	return s, nil
+}
+
+// ReadPassword reads a password from the stdin without echo back.
+func ReadPassword(prompt string) (string, error) {
+	if _, err := fmt.Fprint(os.Stderr, prompt); err != nil {
+		return "", fmt.Errorf("write error: %v", err)
+	}
+	b, err := terminal.ReadPassword(int(syscall.Stdin))
+	if err != nil {
+		return "", fmt.Errorf("read error: %v", err)
+	}
+	if _, err := fmt.Fprintln(os.Stderr); err != nil {
+		return "", fmt.Errorf("write error: %v", err)
+	}
+	return string(b), nil
 }
