@@ -94,11 +94,11 @@ func KubeConfigGenerateCommand() *cobra.Command {
 	command.Flags().StringVar(&paramIssuerUrl, ParamIssuerUrl, DefaultIssuerUrl, "OIDC Issuer URL")
 	command.Flags().StringVar(&paramRedirectUrl, ParamRedirectUrl, DefaultRedirectUrl, "Auth Response Redirect URL")
 	command.Flags().StringVar(&paramAuthMethod, ParamAuthMethod, AuthMethodBrowser, "The method to use for initial authentication. can be one of [browser,remote-browser,password,local-password]")
-	command.Flags().StringVar(&paramKubeConfigUser, "kube-config-user", DefaultKubeConfigUserName, "The user defined in the kubeconfig file to operate on, by default a user called runai-oidc is used")
+	command.Flags().StringVar(&paramKubeConfigUser, "kube-config-user", DefaultKubeConfigUserName, "The user defined in the kubeconfig file to operate on")
 
 	// Optional
 	command.Flags().StringVar(&paramAuthRealm, ParamAuthRealm, "", "[password only] Governs which realm will be used when authenticating the user with the IDP")
-	command.Flags().StringVar(&paramExtraScopes, ParamExtraScopes, "", "comma-delimited list of extra scopes to request with the ID token.")
+	command.Flags().StringVar(&paramExtraScopes, ParamExtraScopes, "", "comma-delimited list of extra scopes to request with the ID token")
 
 	return command
 }
