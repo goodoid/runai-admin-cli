@@ -26,6 +26,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+//go:generate go run generator/generator.go
+
 func main() {
 	if isPProfEnabled() {
 		cpuf, err := os.Create("/tmp/cpu_profile")

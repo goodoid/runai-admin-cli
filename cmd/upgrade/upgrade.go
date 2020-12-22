@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/run-ai/runai-cli/cmd/common"
+	yamlsfile "github.com/run-ai/runai-cli/generatedfiles"
 	"github.com/run-ai/runai-cli/pkg/client"
 	"github.com/run-ai/runai-cli/pkg/util/kubectl"
 	log "github.com/sirupsen/logrus"
@@ -95,13 +96,7 @@ func upgradeYamlsBeforeRun() {
 	defer os.Remove(file.Name())
 	// We can then have a look and see the name
 	// of the image that has been generated for us
-	data, err := ioutil.ReadFile("files/pre_install.yaml")
-	if err != nil {
-		fmt.Errorf("failed to read file error: %v", err)
-		os.Exit(1)
-	}
-
-	if _, err := file.Write(data); err != nil {
+	if _, err := file.Write([]byte(yamlsfile.PreInstallYaml)); err != nil {
 		fmt.Errorf("failed to write file error: %v", err)
 		os.Exit(1)
 	}
