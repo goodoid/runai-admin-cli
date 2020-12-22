@@ -16,6 +16,7 @@ package upgrade
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
@@ -54,8 +55,7 @@ func Command() *cobra.Command {
 				}
 			}
 
-			log.Infof("Upgrading CRDs")
-			kubectl.Apply("https://raw.githubusercontent.com/run-ai/docs/master/install/runai_new_crds.yaml")
+			upgradeYamlsBeforeRun()
 
 			if upgradeFlags.operatorVersion != "" {
 				client := client.GetClient()
@@ -83,6 +83,30 @@ func Command() *cobra.Command {
 	command.Flags().StringVarP(&upgradeFlags.operatorVersion, "version", "v", "", "Set a Run:AI version (e.g. 1.0.45)")
 
 	return command
+}
+
+func upgradeYamlsBeforeRun() {
+	log.Infof("Upgrading yamls before upgrade")
+	file, err := ioutil.TempFile("", "pre_upgrade.yaml")
+	if err != nil {
+		fmt.Println(err)
+	}
+	// We can choose to have these files deleted on program close
+	defer os.Remove(file.Name())
+	// We can then have a look and see the name
+	// of the image that has been generated for us
+	data, err := ioutil.ReadFile("files/pre_install.yaml")
+	if err != nil {
+		fmt.Errorf("failed to read file error: %v", err)
+		os.Exit(1)
+	}
+
+	if _, err := file.Write(data); err != nil {
+		fmt.Errorf("failed to write file error: %v", err)
+		os.Exit(1)
+	}
+
+	kubectl.Apply(file.Name())
 }
 
 func upgradeVersion(client *client.Client, upgradeFlags upgradeFlags) {

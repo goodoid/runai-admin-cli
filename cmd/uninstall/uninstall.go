@@ -29,29 +29,59 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
+type uninstallFlags struct {
+	deleteAll bool
+}
+
 func Command() *cobra.Command {
+	uninstallFlags := uninstallFlags{}
 	var command = &cobra.Command{
 		Use:   "uninstall",
 		Short: "Uninstall the Run:AI cluster",
 		Args:  cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			client := client.GetClient()
-			deleteRunaiConfig(client)
+			if uninstallFlags.deleteAll {
+				deleteRunaiConfig(client)
+			} else {
+				common.ScaleRunaiOperator(client, 0)
+			}
+			deleteAllResources(client, uninstallFlags)
 			deleteResourcesByKubectlCommand()
-			deleteAllResources(client)
-			log.Println("Successfully installed Run:AI Cluster")
+
+			if uninstallFlags.deleteAll {
+				err := client.GetClientset().CoreV1().Namespaces().Delete("runai", &metav1.DeleteOptions{})
+				if err != nil {
+					log.Infof("Failed to delete namespace runai, error %v", err)
+					os.Exit(1)
+				}
+				log.Infof("Deleted namespace runai")
+			}
+			log.Println("Successfully uninstalled Run:AI Cluster")
 		},
 	}
+	command.Flags().BoolVarP(&uninstallFlags.deleteAll, "all", "A", false, "use flag to delete RunaiConfig and Runai Operator")
 
 	return command
 }
 
-func deleteAllResources(client *client.Client) {
+func deleteAllResources(client *client.Client, uninstallFlags uninstallFlags) {
 	deployments, err := client.GetClientset().AppsV1().Deployments("runai").List(metav1.ListOptions{})
 	if err == nil {
 		for _, deployment := range deployments.Items {
+			if !uninstallFlags.deleteAll && deployment.Name == "runai-operator" {
+				continue
+			}
 			client.GetClientset().AppsV1().Deployments("runai").Delete(deployment.Name, &metav1.DeleteOptions{})
 			log.Debugf("deleted deployment %v", deployment.Name)
+		}
+	}
+
+	dss, err := client.GetClientset().AppsV1().DaemonSets("runai").List(metav1.ListOptions{})
+	if err == nil {
+		for _, ds := range dss.Items {
+			client.GetClientset().AppsV1().DaemonSets("runai").Delete(ds.Name, &metav1.DeleteOptions{})
+			log.Debugf("deleted ds %v", ds.Name)
 		}
 	}
 
@@ -71,24 +101,20 @@ func deleteAllResources(client *client.Client) {
 		}
 	}
 
-	pvcs, err := client.GetClientset().CoreV1().PersistentVolumeClaims("runai").List(metav1.ListOptions{})
-	if err == nil && len(pvcs.Items) > 0 {
-		for _, pvc := range pvcs.Items {
-			client.GetClientset().CoreV1().PersistentVolumeClaims("runai").Delete(pvc.Name, &metav1.DeleteOptions{})
-			log.Debugf("deleted pvc %v", pvc.Name)
-		}
-		log.Infof("Deleted PVCs from runai namespace")
+	err = client.GetClientset().CoreV1().PersistentVolumeClaims("runai").Delete("data-runai-db-0", &metav1.DeleteOptions{})
+	if err == nil {
+		log.Debugf("Deleted PVC: data-runai-db-0")
 	}
 
-	err = client.GetClientset().CoreV1().Namespaces().Delete("runai", &metav1.DeleteOptions{})
-	if err != nil {
-		for _, pvc := range pvcs.Items {
-			client.GetClientset().CoreV1().PersistentVolumeClaims("runai").Delete(pvc.Name, &metav1.DeleteOptions{})
-			log.Infof("Failed to delete namespace runai, error %v", err)
-			os.Exit(1)
-		}
+	err = client.GetClientset().CoreV1().PersistentVolumeClaims("runai").Delete("prometheus-runai-prometheus-operator-prometheus-db-prometheus-runai-prometheus-operator-prometheus-0", &metav1.DeleteOptions{})
+	if err == nil {
+		log.Debugf("Deleted PVC: prometheus-runai-prometheus-operator-prometheus-db-prometheus-runai-prometheus-operator-prometheus-0")
 	}
-	log.Infof("Deleted namespace runai")
+
+	err = client.GetClientset().CoreV1().PersistentVolumeClaims("runai").Delete("storage-volume-runai-prometheus-pushgateway-0", &metav1.DeleteOptions{})
+	if err == nil {
+		log.Debugf("Deleted PVC: storage-volume-runai-prometheus-pushgateway-0")
+	}
 }
 
 func deleteRunaiConfig(client *client.Client) {
@@ -133,10 +159,10 @@ func deleteResourcesByKubectlCommand() {
 	pspToDelete := []string{"psp", "runai-admission-controller", "runai-grafana", "runai-grafana-test", "runai-init-ca", "runai-kube-state-metrics", "runai-local-path-provisioner", "runai-prometheus-node-exporter", "runai-prometheus-operator-operator", "runai-prometheus-operator-prometheus", "runai-prometheus-pushgateway", "runai-nginx-ingress", "runai-nginx-ingress-backend", "mpi-operator", "runai-job-controller", "runai-prometheus-operator-admission", "runai-project-controller", "runai-kube-prometheus-stac-prometheus", "nfd-master", "runai-job-viewer", "runai-job-executor"}
 	kubectl.Delete(pspToDelete)
 
-	clusterRoleToDelete := []string{"clusterrole", "init-ca", "psp-runai-kube-state-metrics", "psp-runai-prometheus-node-exporter", "runai", "runai-admission-controller", "runai-grafana-clusterrole", "runai-kube-state-metrics", "runai-operator", "runai-prometheus-operator-operator", "runai-prometheus-operator-operator-psp", "runai-prometheus-operator-prometheus", "runai-prometheus-operator-prometheus-psp", "runai-local-path-provisioner", "mpi-operator", "runai-nginx-ingress", "runai-job-controller", "runai-nfs-client-provisioner-runner", "runai-project-controller", "runai-kube-prometheus-stac-operator", "runai-kube-prometheus-stac-operator-psp", "runai-kube-prometheus-stac-prometheus", "runai-kube-prometheus-stac-prometheus-psp", "nfd-master", "runai-job-viewer", "runai-job-executor", "runai-cli-index-map-editor"}
+	clusterRoleToDelete := []string{"clusterrole", "init-ca", "psp-runai-kube-state-metrics", "psp-runai-prometheus-node-exporter", "runai", "runai-admission-controller", "runai-grafana-clusterrole", "runai-kube-state-metrics", "runai-prometheus-operator-operator", "runai-prometheus-operator-operator-psp", "runai-prometheus-operator-prometheus", "runai-prometheus-operator-prometheus-psp", "runai-local-path-provisioner", "mpi-operator", "runai-nginx-ingress", "runai-job-controller", "runai-nfs-client-provisioner-runner", "runai-project-controller", "runai-kube-prometheus-stac-operator", "runai-kube-prometheus-stac-operator-psp", "runai-kube-prometheus-stac-prometheus", "runai-kube-prometheus-stac-prometheus-psp", "nfd-master", "runai-job-viewer", "runai-job-executor", "runai-cli-index-map-editor"}
 	kubectl.Delete(clusterRoleToDelete)
 
-	clusterRoleBindingToDelete := []string{"clusterrolebinding", "default-sa-admin", "init-ca", "psp-runai-kube-state-metrics", "psp-runai-prometheus-node-exporter", "runai", "runai-admission-controller", "runai-grafana-clusterrolebinding", "runai-kube-state-metrics", "runai-operator", "runai-prometheus-operator-operator", "runai-prometheus-operator-operator-psp", "runai-prometheus-operator-prometheus", "runai-prometheus-operator-prometheus-psp", "runai-local-path-provisioner", "mpi-operator", "runai-nginx-ingress", "runai-job-controller", "run-runai-nfs-client-provisioner", "runai-project-controller", "runai-kube-prometheus-stac-operator", "runai-kube-prometheus-stac-operator-psp", "runai-kube-prometheus-stac-prometheus", "runai-kube-prometheus-stac-prometheus-psp", "nfd-master", "runai-job-viewer", "runai-job-executor"}
+	clusterRoleBindingToDelete := []string{"clusterrolebinding", "default-sa-admin", "init-ca", "psp-runai-kube-state-metrics", "psp-runai-prometheus-node-exporter", "runai", "runai-admission-controller", "runai-grafana-clusterrolebinding", "runai-kube-state-metrics", "runai-prometheus-operator-operator", "runai-prometheus-operator-operator-psp", "runai-prometheus-operator-prometheus", "runai-prometheus-operator-prometheus-psp", "runai-local-path-provisioner", "mpi-operator", "runai-nginx-ingress", "runai-job-controller", "run-runai-nfs-client-provisioner", "runai-project-controller", "runai-kube-prometheus-stac-operator", "runai-kube-prometheus-stac-operator-psp", "runai-kube-prometheus-stac-prometheus", "runai-kube-prometheus-stac-prometheus-psp", "nfd-master", "runai-job-viewer", "runai-job-executor"}
 	kubectl.Delete(clusterRoleBindingToDelete)
 
 	mutatingWebhookConfigurationToDelete := []string{"MutatingWebhookConfiguration", "runai-fractional-gpus", "runai-label-project", "runai-mutating-webhook", "runai-prometheus-operator-admission", "runai-reporter-library", "runai-node-affinity", "runai-resource-gpu-factor", "runai-kube-prometheus-stac-admission"}
