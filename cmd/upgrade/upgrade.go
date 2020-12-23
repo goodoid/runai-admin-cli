@@ -21,8 +21,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/run-ai/runai-cli/autogenerate"
 	"github.com/run-ai/runai-cli/cmd/common"
-	yamlsfile "github.com/run-ai/runai-cli/generatedfiles"
 	"github.com/run-ai/runai-cli/pkg/client"
 	"github.com/run-ai/runai-cli/pkg/util/kubectl"
 	log "github.com/sirupsen/logrus"
@@ -92,11 +92,8 @@ func upgradeYamlsBeforeRun() {
 	if err != nil {
 		fmt.Println(err)
 	}
-	// We can choose to have these files deleted on program close
 	defer os.Remove(file.Name())
-	// We can then have a look and see the name
-	// of the image that has been generated for us
-	if _, err := file.Write([]byte(yamlsfile.PreInstallYaml)); err != nil {
+	if _, err := file.Write([]byte(autogenerate.PreInstallYaml)); err != nil {
 		fmt.Errorf("failed to write file error: %v", err)
 		os.Exit(1)
 	}

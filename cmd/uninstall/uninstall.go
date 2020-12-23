@@ -42,6 +42,7 @@ func Command() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			client := client.GetClient()
 			if uninstallFlags.deleteAll {
+				log.Infof("Deleting RunaiConfig")
 				deleteRunaiConfig(client)
 			} else {
 				common.ScaleRunaiOperator(client, 0)
@@ -60,7 +61,7 @@ func Command() *cobra.Command {
 			log.Println("Successfully uninstalled Run:AI Cluster")
 		},
 	}
-	command.Flags().BoolVarP(&uninstallFlags.deleteAll, "all", "A", false, "use flag to delete RunaiConfig and Runai Operator")
+	command.Flags().BoolVarP(&uninstallFlags.deleteAll, "all", "A", false, "use flag to delete: Runai Namespace, RunaiConfig, Runai Operator")
 
 	return command
 }
@@ -70,6 +71,7 @@ func deleteAllResources(client *client.Client, uninstallFlags uninstallFlags) {
 	if err == nil {
 		for _, deployment := range deployments.Items {
 			if !uninstallFlags.deleteAll && deployment.Name == "runai-operator" {
+				log.Infof("Keeping RunAI Operator with 0 replicas")
 				continue
 			}
 			client.GetClientset().AppsV1().Deployments("runai").Delete(deployment.Name, &metav1.DeleteOptions{})
@@ -182,4 +184,13 @@ func deleteResourcesByKubectlCommand() {
 
 	services := []string{"service", "-n", "kube-system", "runai-prometheus-operator-coredns", "runai-prometheus-operator-kube-controller-manager", "runai-prometheus-operator-kube-etcd", "runai-prometheus-operator-kube-proxy", "runai-prometheus-operator-kube-scheduler", "runai-prometheus-operator-kubelet", "kube-prometheus-stack-kubelet", "prom-kube-prometheus-stack-kubelet", "runai-kube-prometheus-stac-kubelet"}
 	kubectl.Delete(services)
+
+	roles := []string{"roles", "-n", "runai", "--all"}
+	kubectl.Delete(roles)
+
+	serviceaccounts := []string{"serviceaccount", "-n", "runai", "--all"}
+	kubectl.Delete(serviceaccounts)
+
+	rolebindings := []string{"rolebinding", "-n", "runai", "--all"}
+	kubectl.Delete(rolebindings)
 }
