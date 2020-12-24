@@ -34,6 +34,7 @@ import (
 type upgradeFlags struct {
 	filePath        string
 	operatorVersion string
+	image           string
 }
 
 func Command() *cobra.Command {
@@ -58,7 +59,7 @@ func Command() *cobra.Command {
 
 			upgradeYamlsBeforeRun()
 
-			if upgradeFlags.operatorVersion != "" {
+			if upgradeFlags.operatorVersion != "" || upgradeFlags.image != "" {
 				client := client.GetClient()
 				common.ScaleRunaiOperator(client, 0)
 				josList, err := client.GetClientset().BatchV1().Jobs("runai").List(metav1.ListOptions{})
@@ -82,6 +83,8 @@ func Command() *cobra.Command {
 
 	command.Flags().StringVarP(&upgradeFlags.filePath, "file", "f", "", "Path of a Run:AI configuration .yaml file")
 	command.Flags().StringVarP(&upgradeFlags.operatorVersion, "version", "v", "", "Set a Run:AI version (e.g. 1.0.45)")
+	command.Flags().StringVarP(&upgradeFlags.image, "image", "i", "", "set image")
+	command.Flags().MarkHidden("image")
 
 	return command
 }
@@ -118,10 +121,15 @@ func upgradeVersion(client *client.Client, upgradeFlags upgradeFlags) {
 				log.Infof("Setting image to 'latest' as an old image was 'latest'")
 			}
 		} else {
-			currentMinorVersion := strings.Split(currentTag, ".")
-			currentMinorInt, _ := strconv.Atoi(currentMinorVersion[2])
-			deployment.Spec.Template.Spec.Containers[0].Image = fmt.Sprintf("%s:%s", currentImage[0], upgradeFlags.operatorVersion)
-			shouldDeleteStsAndPvc = currentMinorInt <= 77
+			if upgradeFlags.image != "" {
+				deployment.Spec.Template.Spec.Containers[0].Image = upgradeFlags.image
+				shouldDeleteStsAndPvc = true
+			} else {
+				currentMinorVersion := strings.Split(currentTag, ".")
+				currentMinorInt, _ := strconv.Atoi(currentMinorVersion[2])
+				deployment.Spec.Template.Spec.Containers[0].Image = fmt.Sprintf("%s:%s", currentImage[0], upgradeFlags.operatorVersion)
+				shouldDeleteStsAndPvc = currentMinorInt <= 77
+			}
 		}
 		_, err = client.GetClientset().AppsV1().Deployments("runai").Update(deployment)
 		if err != nil {

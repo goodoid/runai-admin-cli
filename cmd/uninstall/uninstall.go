@@ -188,6 +188,9 @@ func deleteResourcesByKubectlCommand() {
 	roles := []string{"roles", "-n", "runai", "--all"}
 	kubectl.Delete(roles)
 
+	svc := []string{"services", "-n", "runai", "--all"}
+	kubectl.Delete(svc)
+
 	serviceaccounts := []string{"serviceaccount", "-n", "runai", "--all"}
 	kubectl.Delete(serviceaccounts)
 
