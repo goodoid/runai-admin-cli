@@ -128,7 +128,7 @@ func upgradeVersion(client *client.Client, upgradeFlags upgradeFlags) {
 				currentMinorVersion := strings.Split(currentTag, ".")
 				currentMinorInt, _ := strconv.Atoi(currentMinorVersion[2])
 				deployment.Spec.Template.Spec.Containers[0].Image = fmt.Sprintf("%s:%s", currentImage[0], upgradeFlags.operatorVersion)
-				shouldDeleteStsAndPvc = currentMinorInt <= 77
+				shouldDeleteStsAndPvc = currentMinorInt <= 92
 			}
 		}
 		_, err = client.GetClientset().AppsV1().Deployments("runai").Update(deployment)
