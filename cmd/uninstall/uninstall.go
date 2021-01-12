@@ -191,8 +191,14 @@ func deleteResourcesByKubectlCommand() {
 	svc := []string{"services", "-n", "runai", "--all"}
 	kubectl.Delete(svc)
 
+	mutatingwebhookconfigurations := []string{"mutatingwebhookconfigurations.admissionregistration.k8s.io", "-n", "runai", "--all"}
+	kubectl.Delete(mutatingwebhookconfigurations)
+
 	serviceaccounts := []string{"serviceaccount", "-n", "runai", "--all"}
 	kubectl.Delete(serviceaccounts)
+
+	servicemonitor := []string{"servicemonitor", "-n", "runai", "--all"}
+	kubectl.Delete(servicemonitor)
 
 	rolebindings := []string{"rolebinding", "-n", "runai", "--all"}
 	kubectl.Delete(rolebindings)
