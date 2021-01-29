@@ -10,29 +10,41 @@ import (
 )
 
 const (
-	NumberOfRetiresForApiServer = 3
+	NumberOfRetiresForApiServer        = 3
+	RunaiNamespace                     = "runai"
+	RunaiBackendNamespace              = "runai-backend"
+	RunaiOperatorDeploymentName        = "runai-operator"
+	RunaiBackendOperatorDeploymentName = "helm-operator"
 )
 
 func ScaleRunaiOperator(client *client.Client, replicas int32) {
+	scaleDeployment(client, RunaiNamespace, RunaiOperatorDeploymentName, replicas)
+}
+
+func ScaleRunaiBackendOperator(client *client.Client, replicas int32) {
+	scaleDeployment(client, RunaiBackendNamespace, RunaiBackendOperatorDeploymentName, replicas)
+}
+
+func scaleDeployment(client *client.Client, namespace, deploymentName string, replicas int32) {
 	var err error
 	var deployment *appsv1.Deployment
 	for i := 0; i < NumberOfRetiresForApiServer; i++ {
-		deployment, err = client.GetClientset().AppsV1().Deployments("runai").Get("runai-operator", metav1.GetOptions{})
+		deployment, err = client.GetClientset().AppsV1().Deployments(namespace).Get(deploymentName, metav1.GetOptions{})
 		if err != nil {
-			log.Infof("Failed to get Run:AI operator, error: %v", err)
+			log.Infof("Failed to get %s, error: %v", deploymentName, err)
 			os.Exit(1)
 		}
 		deployment.Spec.Replicas = &replicas
-		deployment, err = client.GetClientset().AppsV1().Deployments("runai").Update(deployment)
+		deployment, err = client.GetClientset().AppsV1().Deployments(namespace).Update(deployment)
 		if err != nil {
-			log.Debugf("Failed to update Run:AI operator, attempt: %v, error: %v", i, err)
+			log.Debugf("Failed to update %s, attempt: %v, error: %v", deploymentName, i, err)
 			continue
 		}
 		break
 	}
 	if err != nil {
-		log.Infof("Failed to update Run:AI operator, error: %v", err)
+		log.Infof("Failed to update %s, error: %v", deploymentName, err)
 		os.Exit(1)
 	}
-	log.Infof("Scaled Run:AI operator to: %v", replicas)
+	log.Infof("Scaled %s to: %v", deploymentName, replicas)
 }
