@@ -31,6 +31,7 @@ const (
 
 func Set() *cobra.Command {
 	flags := nodeRoleTypes{}
+	withBackend := false
 	var command = &cobra.Command{
 		Use:     "node-role NODE_NAME",
 		Aliases: []string{"node-roles"},
@@ -43,12 +44,13 @@ func Set() *cobra.Command {
 			}
 			client := client.GetClient()
 			nodesInCluster := labelNodesWithRolesAndGetNodesInCluster(client, flags, args, true)
-			updateRunaiConfigurations(client, flags, nodesInCluster)
+			updateRunaiConfigurations(client, flags, nodesInCluster, withBackend)
 
 			log.Info("Successfully updated nodes and set configurations")
 		},
 	}
 
+	command.Flags().BoolVar(&withBackend, "with-backend", false, "Update backend pods (In Air-gapped environment)")
 	command.Flags().BoolVar(&flags.AllNodes, "all", false, "Set all nodes.")
 	command.Flags().BoolVar(&flags.CpuWorker, "cpu-worker", false, "Set nodes with node-role of CPU Worker.")
 	command.Flags().BoolVar(&flags.GpuWorker, "gpu-worker", false, "Set nodes with node-role of GPU Worker.")
@@ -56,41 +58,41 @@ func Set() *cobra.Command {
 	return command
 }
 
-func deletePodsIfNeeded(flags nodeRoleTypes, client *client.Client, nodesInCluster map[string]v1.Node, nodeWithRestrictRunaiSystemExist, nodeWithRestrictSchedulingExist bool) {
+func deletePodsIfNeeded(flags nodeRoleTypes, client *client.Client, nodesInCluster map[string]v1.Node, nodeWithRestrictRunaiSystemExist, nodeWithRestrictSchedulingExist bool, namespace string) {
 	if !flags.RunaiSystemWorker && !flags.CpuWorker && !flags.GpuWorker {
 		return
 	}
-	runaiPods, err := client.GetClientset().CoreV1().Pods("runai").List(metav1.ListOptions{})
+	runaiPods, err := client.GetClientset().CoreV1().Pods(namespace).List(metav1.ListOptions{})
 	if err != nil {
 		fmt.Println("Failed to list pods from the runai namespace")
 		os.Exit(1)
 	}
 
 	for _, pod := range runaiPods.Items {
-		deletePodIfNeeded(pod, nodesInCluster, client, nodeWithRestrictRunaiSystemExist, nodeWithRestrictSchedulingExist)
+		deletePodIfNeeded(pod, nodesInCluster, client, nodeWithRestrictRunaiSystemExist, nodeWithRestrictSchedulingExist, namespace)
 	}
 }
 
-func deletePodIfNeeded(pod v1.Pod, nodesInCluster map[string]v1.Node, client *client.Client, nodeWithRestrictRunaiSystemExist, nodeWithRestrictSchedulingExist bool) {
+func deletePodIfNeeded(pod v1.Pod, nodesInCluster map[string]v1.Node, client *client.Client, nodeWithRestrictRunaiSystemExist, nodeWithRestrictSchedulingExist bool, namespace string) {
 	if pod.Spec.Affinity == nil || pod.Spec.Affinity.NodeAffinity == nil || pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution == nil || pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms == nil {
 		return
 	}
 	for _, nodeSelectorTerms := range pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms {
 		for _, matchExpressions := range nodeSelectorTerms.MatchExpressions {
-			if nodeWithRestrictRunaiSystemExist && checkIfLabelIsNotStatisfiedAndDeleteIfNeeded(pod, nodesInCluster, client, matchExpressions, systemWorkerLabel) {
+			if nodeWithRestrictRunaiSystemExist && checkIfLabelIsNotStatisfiedAndDeleteIfNeeded(pod, nodesInCluster, client, matchExpressions, systemWorkerLabel, namespace) {
 				return
 			}
-			if nodeWithRestrictSchedulingExist && checkIfLabelIsNotStatisfiedAndDeleteIfNeeded(pod, nodesInCluster, client, matchExpressions, cpuWorkerLabel) {
+			if nodeWithRestrictSchedulingExist && checkIfLabelIsNotStatisfiedAndDeleteIfNeeded(pod, nodesInCluster, client, matchExpressions, cpuWorkerLabel, namespace) {
 				return
 			}
-			if nodeWithRestrictSchedulingExist && checkIfLabelIsNotStatisfiedAndDeleteIfNeeded(pod, nodesInCluster, client, matchExpressions, gpuWorkerLabel) {
+			if nodeWithRestrictSchedulingExist && checkIfLabelIsNotStatisfiedAndDeleteIfNeeded(pod, nodesInCluster, client, matchExpressions, gpuWorkerLabel, namespace) {
 				return
 			}
 		}
 	}
 }
 
-func checkIfLabelIsNotStatisfiedAndDeleteIfNeeded(pod v1.Pod, nodesInCluster map[string]v1.Node, client *client.Client, matchExpressions v1.NodeSelectorRequirement, labelToCheck string) bool {
+func checkIfLabelIsNotStatisfiedAndDeleteIfNeeded(pod v1.Pod, nodesInCluster map[string]v1.Node, client *client.Client, matchExpressions v1.NodeSelectorRequirement, labelToCheck, namespace string) bool {
 	if matchExpressions.Key == labelToCheck {
 		if len(pod.Spec.NodeName) == 0 {
 			return true
@@ -99,37 +101,39 @@ func checkIfLabelIsNotStatisfiedAndDeleteIfNeeded(pod v1.Pod, nodesInCluster map
 		if found {
 			return true
 		}
-		client.GetClientset().CoreV1().Pods("runai").Delete(pod.Name, &metav1.DeleteOptions{})
+		client.GetClientset().CoreV1().Pods(namespace).Delete(pod.Name, &metav1.DeleteOptions{})
 		log.Debugf("Deleted Run:AI pod: %v", pod.Name)
 	}
 	return false
 }
 
-func deleteResourcesIfNeeded(flags nodeRoleTypes, client *client.Client, nodesInCluster map[string]v1.Node, nodeWithRestrictRunaiSystemExist, nodeWithRestrictSchedulingExist bool) {
+func deleteResourcesIfNeeded(flags nodeRoleTypes, client *client.Client, nodesInCluster map[string]v1.Node, nodeWithRestrictRunaiSystemExist, nodeWithRestrictSchedulingExist, deleteStsAndPvc bool, namespace string) {
 	log.Info("Deleting old Run:AI resources")
-	deletePVCAndStsIfNeeded(flags, client, nodesInCluster, nodeWithRestrictRunaiSystemExist)
-	deleteJobsIfNeeded(client)
-	deletePodsIfNeeded(flags, client, nodesInCluster, nodeWithRestrictRunaiSystemExist, nodeWithRestrictSchedulingExist)
+	if deleteStsAndPvc {
+		deletePVCAndStsIfNeeded(flags, client, nodesInCluster, nodeWithRestrictRunaiSystemExist, namespace)
+	}
+	deleteJobsIfNeeded(client, namespace)
+	deletePodsIfNeeded(flags, client, nodesInCluster, nodeWithRestrictRunaiSystemExist, nodeWithRestrictSchedulingExist, namespace)
 }
 
-func deleteJobsIfNeeded(client *client.Client) {
-	jobs, err := client.GetClientset().BatchV1().Jobs("runai").List(metav1.ListOptions{})
+func deleteJobsIfNeeded(client *client.Client, namespace string) {
+	jobs, err := client.GetClientset().BatchV1().Jobs(namespace).List(metav1.ListOptions{})
 	if err != nil {
 		fmt.Printf("Failed to list jobs, error: %v", err)
 		os.Exit(1)
 	}
 	for _, job := range jobs.Items {
-		client.GetClientset().BatchV1().Jobs("runai").Delete(job.Name, &metav1.DeleteOptions{})
+		client.GetClientset().BatchV1().Jobs(namespace).Delete(job.Name, &metav1.DeleteOptions{})
 		log.Debugf("Deleted Job: %v", job.Name)
 	}
 }
 
-func deletePVCAndStsIfNeeded(flags nodeRoleTypes, client *client.Client, nodesInCluster map[string]v1.Node, nodeWithRestrictRunaiSystemExist bool) {
+func deletePVCAndStsIfNeeded(flags nodeRoleTypes, client *client.Client, nodesInCluster map[string]v1.Node, nodeWithRestrictRunaiSystemExist bool, namespace string) {
 	if !flags.RunaiSystemWorker || !nodeWithRestrictRunaiSystemExist {
 		return
 	}
 
-	pvc, err := client.GetClientset().CoreV1().PersistentVolumeClaims("runai").Get("data-runai-db-0", metav1.GetOptions{})
+	pvc, err := client.GetClientset().CoreV1().PersistentVolumeClaims(namespace).Get("data-runai-db-0", metav1.GetOptions{})
 	pvcNode, found := pvc.Annotations["volume.kubernetes.io/selected-node"]
 	if found {
 		nodeInfo, found := nodesInCluster[pvcNode]
@@ -142,23 +146,23 @@ func deletePVCAndStsIfNeeded(flags nodeRoleTypes, client *client.Client, nodesIn
 			return
 		}
 
-		client.GetClientset().CoreV1().PersistentVolumeClaims("runai").Delete("data-runai-db-0", &metav1.DeleteOptions{})
+		client.GetClientset().CoreV1().PersistentVolumeClaims(namespace).Delete("data-runai-db-0", &metav1.DeleteOptions{})
 		log.Debugf("Deleted PVC data-runai-db-0")
 	}
 
-	stsList, err := client.GetClientset().AppsV1().StatefulSets("runai").List(metav1.ListOptions{})
+	stsList, err := client.GetClientset().AppsV1().StatefulSets(namespace).List(metav1.ListOptions{})
 	if err != nil {
-		log.Debugf("Failed to list statefulsets in the runai namespace")
+		log.Debugf("Failed to list statefulsets in the %s namespace", namespace)
 		return
 	}
 
 	for _, sts := range stsList.Items {
-		client.GetClientset().AppsV1().StatefulSets("runai").Delete(sts.Name, &metav1.DeleteOptions{})
+		client.GetClientset().AppsV1().StatefulSets(namespace).Delete(sts.Name, &metav1.DeleteOptions{})
 		log.Debugf("Deleted Statefulset: %v", sts.Name)
 	}
 }
 
-func updateRunaiConfigurations(client *client.Client, flags nodeRoleTypes, nodesInCluster map[string]v1.Node) {
+func updateRunaiConfigurations(client *client.Client, flags nodeRoleTypes, nodesInCluster map[string]v1.Node, withBackend bool) {
 	log.Info("Updating Run:AI configurations")
 	nodeWithRestrictSchedulingExist := false
 	nodeWithRestrictRunaiSystemExist := false
@@ -176,13 +180,21 @@ func updateRunaiConfigurations(client *client.Client, flags nodeRoleTypes, nodes
 	log.Debugf("Nodes with cpu or gpu workers already exist: %v", nodeWithRestrictSchedulingExist)
 	log.Debugf("Nodes with runai system workers already exist: %v", nodeWithRestrictRunaiSystemExist)
 	common.ScaleRunaiOperator(client, 0)
-	updateRunaiDeploymentWithAffinity(client, flags, nodeWithRestrictRunaiSystemExist)
+	updateDeploymentWithAffinity(client, flags, common.RunaiNamespace, common.RunaiOperatorDeploymentName, nodeWithRestrictRunaiSystemExist)
 	updateRunaiConfigIfNeeded(client, flags, nodeWithRestrictSchedulingExist, nodeWithRestrictRunaiSystemExist)
-	deleteResourcesIfNeeded(flags, client, nodesInCluster, nodeWithRestrictRunaiSystemExist, nodeWithRestrictSchedulingExist)
+	deleteResourcesIfNeeded(flags, client, nodesInCluster, nodeWithRestrictRunaiSystemExist, nodeWithRestrictSchedulingExist, true, common.RunaiNamespace)
 	common.ScaleRunaiOperator(client, 1)
+
+	if withBackend {
+		common.ScaleRunaiBackendOperator(client, 0)
+		updateDeploymentWithAffinity(client, flags, common.RunaiBackendNamespace, common.RunaiBackendOperatorDeploymentName, nodeWithRestrictRunaiSystemExist)
+		updateHelmReleaseIfNeeded(client, flags, nodeWithRestrictRunaiSystemExist)
+		deleteResourcesIfNeeded(flags, client, nodesInCluster, nodeWithRestrictRunaiSystemExist, nodeWithRestrictSchedulingExist, false, common.RunaiBackendNamespace)
+		common.ScaleRunaiBackendOperator(client, 1)
+	}
 }
 
-func updateRunaiDeploymentWithAffinity(client *client.Client, flags nodeRoleTypes, nodeWithRestrictRunaiSystemExist bool) {
+func updateDeploymentWithAffinity(client *client.Client, flags nodeRoleTypes, namespace, deploymentName string, nodeWithRestrictRunaiSystemExist bool) {
 	if !flags.RunaiSystemWorker {
 		return
 	}
@@ -191,7 +203,7 @@ func updateRunaiDeploymentWithAffinity(client *client.Client, flags nodeRoleType
 	var deployment *appsv1.Deployment
 
 	for i := 0; i < common.NumberOfRetiresForApiServer; i++ {
-		deployment, err = client.GetClientset().AppsV1().Deployments("runai").Get("runai-operator", metav1.GetOptions{})
+		deployment, err = client.GetClientset().AppsV1().Deployments(namespace).Get(deploymentName, metav1.GetOptions{})
 		if err != nil {
 			log.Infof("Failed to get runai-operator, error: %v", err)
 			os.Exit(1)
@@ -216,19 +228,19 @@ func updateRunaiDeploymentWithAffinity(client *client.Client, flags nodeRoleType
 		} else {
 			deployment.Spec.Template.Spec.Affinity = nil
 		}
-		_, err = client.GetClientset().AppsV1().Deployments("runai").Update(deployment)
+		_, err = client.GetClientset().AppsV1().Deployments(namespace).Update(deployment)
 		if err != nil {
-			log.Debugf("Failed to update the Run:AI operator, attempt: %v error: %v", i, err)
+			log.Debugf("Failed to update the %s, attempt: %v error: %v", deploymentName, i, err)
 			continue
 		}
 		break
 	}
 	if err != nil {
-		log.Infof("Failed to update the Run:AI operator, error: %v", err)
+		log.Infof("Failed to update the %s, error: %v", deploymentName, err)
 		os.Exit(1)
 	}
 
-	log.Debugf("Updated Run:AI operator to have node affinity and scaled to 0 replicas")
+	log.Debugf("Updated %s to have node affinity and scaled to 0 replicas", deploymentName)
 }
 
 func updateRunaiConfigIfNeeded(client *client.Client, flags nodeRoleTypes, nodeWithRestrictSchedulingExist, nodeWithRestrictRunaiSystemExist bool) {
@@ -236,7 +248,7 @@ func updateRunaiConfigIfNeeded(client *client.Client, flags nodeRoleTypes, nodeW
 	var error error
 	var runaiConfig *unstructured.Unstructured
 	for i := 0; i < common.NumberOfRetiresForApiServer; i++ {
-		runaiConfig, error = client.GetDynamicClient().Resource(runaiconfigResource).Namespace("runai").Get("runai", metav1.GetOptions{})
+		runaiConfig, error = client.GetDynamicClient().Resource(runaiconfigResource).Namespace(common.RunaiNamespace).Get("runai", metav1.GetOptions{})
 		if error != nil {
 			fmt.Println("Failed to get RunaiConfig, Run:AI is not installed on the cluster")
 			os.Exit(1)
@@ -264,7 +276,7 @@ func updateRunaiConfigIfNeeded(client *client.Client, flags nodeRoleTypes, nodeW
 		if !reflect.DeepEqual(nodeAffinityMap, nodeAffinityMapOldValues) {
 			log.Debugf("Updating RunaiConfig with nodeAffinityMap: %v", nodeAffinityMap)
 			err = unstructured.SetNestedMap(runaiConfig.Object, nodeAffinityMap, "spec", "global", "nodeAffinity")
-			_, error = client.GetDynamicClient().Resource(runaiconfigResource).Namespace("runai").Update(runaiConfig, metav1.UpdateOptions{})
+			_, error = client.GetDynamicClient().Resource(runaiconfigResource).Namespace(common.RunaiNamespace).Update(runaiConfig, metav1.UpdateOptions{})
 			if error != nil {
 				log.Debugf("Failed to update runaiconfig, attempt: %v, error: %v", i, error)
 				continue
@@ -275,6 +287,50 @@ func updateRunaiConfigIfNeeded(client *client.Client, flags nodeRoleTypes, nodeW
 
 	if error != nil {
 		log.Infof("Failed to update runaiconfig, error: %v", error)
+		os.Exit(1)
+	}
+}
+
+func updateHelmReleaseIfNeeded(client *client.Client, flags nodeRoleTypes, nodeWithRestrictRunaiSystemExist bool) {
+	helmReleaseResource := schema.GroupVersionResource{Group: "helm.fluxcd.io", Version: "v1", Resource: "HelmRelease"}
+	var error error
+	var runaiBackendHelmRelease *unstructured.Unstructured
+	for i := 0; i < common.NumberOfRetiresForApiServer; i++ {
+		runaiBackendHelmRelease, error = client.GetDynamicClient().Resource(helmReleaseResource).Namespace(common.RunaiBackendNamespace).Get("runai-backend", metav1.GetOptions{})
+		if error != nil {
+			fmt.Println("Failed to get HelmRelease, Run:AI Backend is not installed on the cluster")
+			os.Exit(1)
+		}
+		nodeAffinityMapOldValues, _, err := unstructured.NestedMap(runaiBackendHelmRelease.Object, "spec", "global", "nodeAffinity")
+		log.Debugf("HelmRelease old values of nodeAffinityMap: %v", nodeAffinityMapOldValues)
+
+		nodeAffinityMap := map[string]interface{}{}
+		for key, val := range nodeAffinityMapOldValues {
+			nodeAffinityMap[key] = val
+		}
+		if err != nil {
+			fmt.Printf("Failed to get nodeAffinityMap from runaiBackendHelmRelease, error: %v", err)
+			os.Exit(1)
+		}
+
+		if flags.RunaiSystemWorker {
+			nodeAffinityMap["restrictRunaiSystem"] = nodeWithRestrictRunaiSystemExist
+		}
+
+		if !reflect.DeepEqual(nodeAffinityMap, nodeAffinityMapOldValues) {
+			log.Debugf("Updating HelmRelease with nodeAffinityMap: %v", nodeAffinityMap)
+			err = unstructured.SetNestedMap(runaiBackendHelmRelease.Object, nodeAffinityMap, "spec", "global", "nodeAffinity")
+			_, error = client.GetDynamicClient().Resource(helmReleaseResource).Namespace(common.RunaiNamespace).Update(runaiBackendHelmRelease, metav1.UpdateOptions{})
+			if error != nil {
+				log.Debugf("Failed to update HelmRelease, attempt: %v, error: %v", i, error)
+				continue
+			}
+		}
+		break
+	}
+
+	if error != nil {
+		log.Infof("Failed to update HelmRelease, error: %v", error)
 		os.Exit(1)
 	}
 }
@@ -373,6 +429,7 @@ func updateLabelsSingleNode(nodeInfo *v1.Node, flags nodeRoleTypes, client *clie
 
 func Remove() *cobra.Command {
 	flags := nodeRoleTypes{}
+	withBackend := false
 	var command = &cobra.Command{
 		Use:     "node-role NODE_NAME",
 		Aliases: []string{"node-roles"},
@@ -385,11 +442,12 @@ func Remove() *cobra.Command {
 			}
 			client := client.GetClient()
 			nodesInCluster := labelNodesWithRolesAndGetNodesInCluster(client, flags, args, false)
-			updateRunaiConfigurations(client, flags, nodesInCluster)
+			updateRunaiConfigurations(client, flags, nodesInCluster, withBackend)
 			log.Infof("Successfully updated nodes with roles")
 		},
 	}
 
+	command.Flags().BoolVar(&withBackend, "with-backend", false, "Update backend pods (In Air-gapped environment)")
 	command.Flags().BoolVar(&flags.AllNodes, "all", false, "Set all nodes")
 	command.Flags().BoolVar(&flags.CpuWorker, "cpu-worker", false, "Set nodes with node-role of CPU Worker.")
 	command.Flags().BoolVar(&flags.GpuWorker, "gpu-worker", false, "Set nodes with node-role of GPU Worker.")

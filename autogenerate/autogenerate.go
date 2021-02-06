@@ -1,7 +1,6 @@
 // THIS FILE IS AUTO GENERATED ON MAKE COMMAND - DO NOT EDIT
-
-package autogenerate
-
+ 
+package autogenerate 
 var PreInstallYaml = `apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
