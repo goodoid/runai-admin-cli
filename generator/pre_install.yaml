@@ -1,6 +1,18 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
+  name: runai-db
+  namespace: runai
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: runai-db-migrations
+  namespace: runai
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
   name: runai-vgpu
   namespace: runai
 ---
