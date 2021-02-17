@@ -54,6 +54,7 @@ rules:
   - apiGroups:
       - ""
       - batch
+      - kubeflow.org
       - policy
       - run.ai
       - scheduling.k8s.io
@@ -61,7 +62,9 @@ rules:
       - storage.k8s.io
     resources:
       - departments
+      - deployments
       - jobs
+      - mpijobs
       - nodes
       - persistentvolumes
       - persistentvolumeclaims
@@ -70,6 +73,7 @@ rules:
       - pods
       - priorityclasses
       - queues
+      - replicasets
       - runaijobs
       - storageclasses
     verbs:
@@ -98,11 +102,15 @@ rules:
   - apiGroups:
       - ""
       - apps
+      - batch
+      - kubeflow.org
       - run.ai
       - scheduling.incubator.k8s.io
     resources:
       - configmaps
       - events
+      - jobs
+      - mpijobs
       - persistentvolumeclaims
       - podgroups
       - pods
