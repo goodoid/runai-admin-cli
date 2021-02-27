@@ -57,6 +57,7 @@ rules:
   - apiGroups:
       - ""
       - batch
+      - kubeflow.org
       - policy
       - run.ai
       - scheduling.k8s.io
@@ -64,7 +65,9 @@ rules:
       - storage.k8s.io
     resources:
       - departments
+      - deployments
       - jobs
+      - mpijobs
       - nodes
       - persistentvolumes
       - persistentvolumeclaims
@@ -73,6 +76,7 @@ rules:
       - pods
       - priorityclasses
       - queues
+      - replicasets
       - runaijobs
       - storageclasses
     verbs:
@@ -101,11 +105,15 @@ rules:
   - apiGroups:
       - ""
       - apps
+      - batch
+      - kubeflow.org
       - run.ai
       - scheduling.incubator.k8s.io
     resources:
       - configmaps
       - events
+      - jobs
+      - mpijobs
       - persistentvolumeclaims
       - podgroups
       - pods
@@ -832,4 +840,157 @@ spec:
       type: object
   version: v1alpha1
 ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  namespace: runai
+  name: runai-project-controller
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: runai-project-controller
+rules:
+  - apiGroups:
+      - run.ai
+    resources:
+      - projects
+      - projects/finalizers
+    verbs:
+      - '*'
+  - apiGroups:
+      - scheduling.incubator.k8s.io
+    resources:
+      - queues
+    verbs:
+      - '*'
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+      - configmaps
+      - limitranges
+      - serviceaccounts
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - rolebindings
+    verbs:
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: runai-project-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: runai-project-controller
+subjects:
+  - kind: ServiceAccount
+    name: runai-project-controller
+    namespace: runai
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: runai-project-controller-project
+rules:
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resourceNames:
+      - runai-job-executor
+    resources:
+      - rolebindings
+      - clusterroles
+    verbs:
+      - '*'
+  - apiGroups:
+      - ""
+    resourceNames:
+      - default
+    resources:
+      - serviceaccounts
+    verbs:
+      - update
+      - create
+  - apiGroups:
+      - ""
+    resourceNames:
+      - runai-limit-range
+    resources:
+      - limitranges
+    verbs:
+      - update
+      - create
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    verbs:
+      - update
+      - create
+      - delete
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  namespace: runai
+  name: runai-job-controller
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: runai-job-controller
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+      - events
+      - configmaps
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - run.ai
+    resources:
+      - '*'
+    verbs:
+      - '*'
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: runai-job-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: runai-job-controller
+subjects:
+  - kind: ServiceAccount
+    name: runai-job-controller
+    namespace: runai
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: runai-job-controller-project
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+      - events
+      - configmaps
+    verbs:
+      - create
+      - update
 `
