@@ -1,7 +1,279 @@
 // THIS FILE IS AUTO GENERATED ON MAKE COMMAND - DO NOT EDIT
  
 package autogenerate 
-var PreInstallYaml = `apiVersion: apiextensions.k8s.io/v1beta1
+var PreInstallYaml = `apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: researcher-service
+  namespace: runai
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: researcher-service
+rules:
+  - apiGroups:
+      - ""
+      - apps
+      - run.ai
+    resources:
+      - configmaps
+      - namespaces
+      - pods
+      - pods/log
+      - projects
+      - runaijobs
+      - statefulsets
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: researcher-service
+subjects:
+  - kind: ServiceAccount
+    name: researcher-service
+    namespace: runai
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: researcher-service
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: runai-scheduler
+  namespace: runai
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: runai-scheduler-ro
+rules:
+  - apiGroups:
+      - ""
+      - batch
+      - policy
+      - run.ai
+      - scheduling.k8s.io
+      - scheduling.incubator.k8s.io
+      - storage.k8s.io
+    resources:
+      - departments
+      - jobs
+      - nodes
+      - persistentvolumes
+      - persistentvolumeclaims
+      - poddisruptionbudgets
+      - podgroups
+      - pods
+      - priorityclasses
+      - queues
+      - runaijobs
+      - storageclasses
+    verbs:
+      - get
+      - list
+      - watch
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: runai-scheduler-ro
+subjects:
+  - kind: ServiceAccount
+    name: runai-scheduler
+    namespace: runai
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: runai-scheduler-ro
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: runai-scheduler-rw
+rules:
+  - apiGroups:
+      - ""
+      - apps
+      - run.ai
+      - scheduling.incubator.k8s.io
+    resources:
+      - configmaps
+      - events
+      - persistentvolumeclaims
+      - podgroups
+      - pods
+      - pods/status
+      - pods/binding
+      - runaijobs
+      - statefulsets
+    verbs:
+      - create
+      - get
+      - list
+      - patch
+      - update
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: runai-scheduler-rw
+subjects:
+  - kind: ServiceAccount
+    name: runai-scheduler
+    namespace: runai
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: runai-scheduler-rw
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: runai-db
+  namespace: runai
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: runai-db-migrations
+  namespace: runai
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: runai-vgpu
+  namespace: runai
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: runai-nvidia-device-plugin
+  namespace: runai
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: runai-nvidia-device-plugin
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - nodes
+    verbs:
+      - get
+      - list
+      - update
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+    verbs:
+      - get
+      - list
+      - watch
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: runai-nvidia-device-plugin
+subjects:
+  - kind: ServiceAccount
+    name: runai-nvidia-device-plugin
+    namespace: runai
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: runai-nvidia-device-plugin
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: runai-agent
+  namespace: runai
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: runai-agent
+rules:
+  - apiGroups:
+      - run.ai
+    resources:
+      - projects
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - update
+  - apiGroups:
+      - scheduling.incubator.k8s.io
+    resources:
+      - departments
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - update
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - clusterroles
+    resourceNames:
+      - runai-cli-index-map-editor
+    verbs:
+      - bind
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - clusterroles
+    resourceNames:
+      - runai-job-viewer
+    verbs:
+      - bind
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - rolebindings
+    resourceNames:
+      - runai-cli-index-map-editor
+    verbs:
+      - get
+      - list
+      - update
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - clusterrolebindings
+    resourceNames:
+      - runai-job-viewer
+    verbs:
+      - get
+      - list
+      - update
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: runai-agent
+subjects:
+  - kind: ServiceAccount
+    name: runai-agent
+    namespace: runai
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: runai-agent
+---
+apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
   name: runaiconfigs.run.ai
