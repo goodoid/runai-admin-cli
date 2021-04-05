@@ -176,7 +176,7 @@ func deleteResourcesByKubectlCommand() {
 	pcToDelete := []string{"pc", "build", "interactive-preemptible", "train", "runai-critical"}
 	kubectl.Delete(pcToDelete)
 
-        crdToDelete := []string{"prometheuses.monitoring.coreos.com"}
+        crdToDelete := []string{"crd", "prometheuses.monitoring.coreos.com"}
 	kubectl.Delete(crdToDelete)
 
 	scToDelete := []string{"sc", "local-path", "nfs-client"}
